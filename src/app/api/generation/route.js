@@ -26,7 +26,6 @@ function cleanJsonString(str) {
   return cleaned;
 }
 
-
 export async function POST(req) {
   try {
     const session = await getServerSession(authOptions);
@@ -41,12 +40,19 @@ export async function POST(req) {
       return new NextResponse("URL and Keyword are required", { status: 400 });
     }
 
-    // 1. Deduct credits (18 credits)
-    const cost = config.ai.generationCost || 18;
-    try {
-      await UserService.deductCredits(session.user.id, cost);
-    } catch (err) {
-      return new NextResponse("Insufficient credits", { status: 402 });
+    // Extract custom API key
+    const headerApiKey = req.headers.get("x-custom-api-key");
+    const customApiKey = headerApiKey || body.customApiKey || session.user.customApiKey || null;
+    const isUsingCustomKey = Boolean(customApiKey && customApiKey.trim().length > 0);
+
+    // 1. Deduct credits if not using custom API key
+    const cost = isUsingCustomKey ? 0 : (config.ai.generationCost || 18);
+    if (!isUsingCustomKey && cost > 0) {
+      try {
+        await UserService.deductCredits(session.user.id, cost);
+      } catch (err) {
+        return new NextResponse("Insufficient credits", { status: 402 });
+      }
     }
 
     // 2. Perform Scrape
@@ -121,7 +127,7 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
     }
 
     // 4. Submit to MuAPI any-llm
-    const apiKey = config.ai.apiKey;
+    const apiKey = isUsingCustomKey ? customApiKey.trim() : config.ai.apiKey;
     let reportData = "";
     let requestId = `mock_${Date.now()}`;
     let status = "processing";

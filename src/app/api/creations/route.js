@@ -15,7 +15,6 @@ function cleanJsonString(str) {
   return cleaned;
 }
 
-
 export async function GET(req) {
   try {
     const session = await getServerSession(authOptions);
@@ -26,6 +25,11 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
 
+    const headerApiKey = req.headers.get("x-custom-api-key");
+    const customApiKey = headerApiKey || session.user.customApiKey || null;
+    const apiKey = (customApiKey && customApiKey.trim().length > 0) ? customApiKey.trim() : config.ai.apiKey;
+    const hasApiKey = apiKey && !apiKey.includes("your_") && apiKey.trim() !== "";
+
     if (id) {
       let creation = await prisma.geoReport.findFirst({
         where: { id, userId: session.user.id }
@@ -35,9 +39,6 @@ export async function GET(req) {
       }
 
       // Check status dynamically if processing (Webhook bypass pattern for single prediction)
-      const apiKey = config.ai.apiKey;
-      const hasApiKey = apiKey && !apiKey.includes("your_") && apiKey.trim() !== "";
-
       if (creation.status === "processing" && creation.requestId && !creation.requestId.startsWith("mock_") && hasApiKey) {
         try {
           const checkRes = await fetch(`https://api.muapi.ai/api/v1/predictions/${creation.requestId}/result`, {
@@ -101,10 +102,7 @@ export async function GET(req) {
       orderBy: { createTime: "desc" }
     });
 
-    // 2. Active status checking & dynamic update (Webhook bypass pattern)
-    const apiKey = config.ai.apiKey;
-    const hasApiKey = apiKey && !apiKey.includes("your_") && apiKey.trim() !== "";
-    
+    // 2. Active status checking & dynamic update
     const updatedCreations = await Promise.all(
       creations.map(async (creation) => {
         if (creation.status === "processing" && creation.requestId && !creation.requestId.startsWith("mock_") && hasApiKey) {
