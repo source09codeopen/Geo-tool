@@ -15,6 +15,11 @@
 
 > 🎨 **[Explore 50+ more open-source AI apps →](https://github.com/Anil-matcha/awesome-generative-ai-apps)**
 
+## Related Projects
+
+- [MuAPI API quick start](https://muapi.ai/docs/quick-start?utm_source=github&utm_medium=readme&utm_campaign=geo-checker) — add unified model calls to AI-search visibility tools
+- [MuAPI model catalog](https://muapi.ai/docs/models?utm_source=github&utm_medium=readme&utm_campaign=geo-checker) — compare the models available for analysis workflows
+
 ## 🌐 Project Details
 
 **GitHub Repository:** [github.com/SamurAIGPT/geo-checker](https://github.com/SamurAIGPT/geo-checker)
