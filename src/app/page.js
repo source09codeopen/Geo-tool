@@ -168,6 +168,9 @@ export default function StudioPage() {
     setGeneratingError("");
     setResult(null);
 
+    const requestController = new AbortController();
+    const requestTimeout = setTimeout(() => requestController.abort(), 55000);
+
     try {
       const res = await fetch("/api/generation", {
         method: "POST",
@@ -177,7 +180,9 @@ export default function StudioPage() {
           keyword,
           engines,
         }),
+        signal: requestController.signal,
       });
+      clearTimeout(requestTimeout);
 
       if (res.status === 402) {
         setGeneratingError(
@@ -209,9 +214,12 @@ export default function StudioPage() {
         pollResult(data.id);
       }
     } catch (err) {
+      clearTimeout(requestTimeout);
       console.error(err);
       setGeneratingError(
-        "An error occurred during generative engine audit. Please try again.",
+        err.name === "AbortError"
+          ? "The audit request timed out. Please try again."
+          : "An error occurred during generative engine audit. Please try again.",
       );
       setGeneratingStatus("error");
     }

@@ -150,28 +150,37 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
           const modelName = config.ai.model || "gemini-2.0-flash";
           const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-          const geminiRes = await fetch(geminiEndpoint, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: "user",
-                  parts: [
-                    {
-                      text: `${systemPrompt}\n\n${prompt}`
-                    }
-                  ]
+          const geminiController = new AbortController();
+          const geminiTimeout = setTimeout(() => geminiController.abort(), 30000);
+
+          let geminiRes;
+          try {
+            geminiRes = await fetch(geminiEndpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    role: "user",
+                    parts: [
+                      {
+                        text: `${systemPrompt}\n\n${prompt}`
+                      }
+                    ]
+                  }
+                ],
+                generationConfig: {
+                  responseMimeType: "application/json",
+                  temperature: 0.7
                 }
-              ],
-              generationConfig: {
-                responseMimeType: "application/json",
-                temperature: 0.7
-              }
-            })
-          });
+              }),
+              signal: geminiController.signal,
+            });
+          } finally {
+            clearTimeout(geminiTimeout);
+          }
 
           if (geminiRes.ok) {
             const geminiData = await geminiRes.json();
@@ -199,14 +208,23 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
             temperature: 1
           };
 
-          const submitRes = await fetch(submitUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-api-key": apiKey
-            },
-            body: JSON.stringify(inputPayload)
-          });
+          const submitController = new AbortController();
+          const submitTimeout = setTimeout(() => submitController.abort(), 15000);
+
+          let submitRes;
+          try {
+            submitRes = await fetch(submitUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": apiKey
+              },
+              body: JSON.stringify(inputPayload),
+              signal: submitController.signal,
+            });
+          } finally {
+            clearTimeout(submitTimeout);
+          }
 
           if (submitRes.ok) {
             const resJson = await submitRes.json();
