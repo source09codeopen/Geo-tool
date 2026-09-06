@@ -219,8 +219,11 @@ export default function StudioPage() {
 
   const pollResult = async (id) => {
     let completed = false;
+    let attempts = 0;
+    const maxAttempts = 24; // ~60s of polling at 2.5s intervals
 
-    while (!completed) {
+    while (!completed && attempts < maxAttempts) {
+      attempts++;
       await new Promise((resolve) => setTimeout(resolve, 2500));
 
       try {
@@ -259,6 +262,13 @@ export default function StudioPage() {
       } catch (err) {
         console.error("Error polling report status:", err);
       }
+    }
+
+    if (!completed) {
+      setGeneratingError(
+        "AI visibility check timed out. Please try again.",
+      );
+      setGeneratingStatus("error");
     }
   };
 

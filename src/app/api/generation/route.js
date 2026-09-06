@@ -265,7 +265,11 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
           }
         }
       } catch (err) {
-        console.warn("AI generation failed, falling back to mocks:", err.message);
+        console.warn("AI generation failed:", err.message);
+      }
+
+      if (!reportData || reportData.trim() === "") {
+        status = "failed";
       }
     } else {
       // Mock mode fallback
