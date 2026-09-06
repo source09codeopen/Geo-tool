@@ -5,6 +5,9 @@ import { prisma } from "../../../lib/prisma";
 import { UserService } from "../../../lib/services/user";
 import config from "../../../lib/config";
 
+// Extend Vercel function timeout to 60s (Hobby plan supports up to 60s)
+export const maxDuration = 60;
+
 function extractTextFromHtml(html) {
   if (!html) return "";
   let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ");
@@ -66,12 +69,17 @@ export async function POST(req) {
         absoluteUrl = `https://${url}`;
       }
 
+      const scrapeController = new AbortController();
+      const scrapeTimeout = setTimeout(() => scrapeController.abort(), 5000);
+
       const scrapeRes = await fetch(absoluteUrl, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
-        next: { revalidate: 60 }
+        next: { revalidate: 60 },
+        signal: scrapeController.signal,
       });
+      clearTimeout(scrapeTimeout);
 
       if (scrapeRes.ok) {
         const html = await scrapeRes.text();
