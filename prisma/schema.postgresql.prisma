@@ -52,8 +52,8 @@ model GeoReport {
   url         String   @db.Text
   keyword     String   @db.Text
   score       Int      @default(0)
-  engines     String   @db.Text
-  reportData  String   @db.Text
+  engines     String   @db.Text // JSON string list of engines checked, e.g. ["chatgpt", "perplexity"]
+  reportData  String   @db.Text // Full audit response containing E-E-A-T, recommendations, tips
   requestId   String   @unique
   status      String   @default("processing")
   creditCost  Int      @default(18)
@@ -69,5 +69,3 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
-
-

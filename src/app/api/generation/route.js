@@ -45,9 +45,10 @@ export async function POST(req) {
     const customApiKey = headerApiKey || body.customApiKey || session.user.customApiKey || null;
     const isUsingCustomKey = Boolean(customApiKey && customApiKey.trim().length > 0);
 
-    // 1. Deduct credits if not using custom API key
-    const cost = isUsingCustomKey ? 0 : (config.ai.generationCost || 18);
-    if (!isUsingCustomKey && cost > 0) {
+    // 1. Deduct credits if not using custom API key and not in free mode
+    const isFree = isUsingCustomKey || Boolean(config.ai.freeMode);
+    const cost = isFree ? 0 : (config.ai.generationCost || 18);
+    if (!isFree && cost > 0) {
       try {
         await UserService.deductCredits(session.user.id, cost);
       } catch (err) {
@@ -126,90 +127,137 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
       prompt += `Scraped Page Content:\n${scrapedText}`;
     }
 
-    // 4. Submit to MuAPI any-llm
+    // 4. Submit to Google Gemini Flash API (or fallback to MuAPI / Mock)
     const apiKey = isUsingCustomKey ? customApiKey.trim() : config.ai.apiKey;
     let reportData = "";
-    let requestId = `mock_${Date.now()}`;
-    let status = "processing";
+    let requestId = `gemini_${Date.now()}`;
+    let status = "completed";
 
     if (apiKey && !apiKey.includes("your_") && apiKey.trim() !== "") {
       try {
-        const webhookUrl = `${config.auth.webhook_url}/api/webhook/muapi`;
-        const submitUrl = `https://api.muapi.ai/api/v1/any-llm-models?webhook=${encodeURIComponent(webhookUrl)}`;
+        // Detect if key is a Gemini API Key (starts with AIzaSy or configured via GEMINI_API_KEY)
+        const isGeminiKey = apiKey.startsWith("AIzaSy") || Boolean(process.env.GEMINI_API_KEY) || !process.env.MUAPIAPP_API_KEY;
 
-        const inputPayload = {
-          prompt,
-          system_prompt: systemPrompt,
-          model: "google/gemini-2.5-flash",
-          temperature: 1
-        };
+        if (isGeminiKey) {
+          const modelName = config.ai.model || "gemini-2.0-flash";
+          const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-        const submitRes = await fetch(submitUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": apiKey
-          },
-          body: JSON.stringify(inputPayload)
-        });
-
-        if (submitRes.ok) {
-          const resJson = await submitRes.json();
-          const reqId = resJson.request_id || resJson.id;
-          if (reqId) {
-            requestId = reqId;
-
-            // Poll for result (max 15s)
-            let completed = false;
-            let attempts = 0;
-            const maxAttempts = 6;
-
-            while (!completed && attempts < maxAttempts) {
-              await new Promise(resolve => setTimeout(resolve, 2500));
-              attempts++;
-
-              try {
-                const pollRes = await fetch(`https://api.muapi.ai/api/v1/predictions/${requestId}/result`, {
-                  method: "GET",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": apiKey
-                  }
-                });
-
-                if (pollRes.ok) {
-                  const pollJson = await pollRes.json();
-                  const state = pollJson.status || pollJson.state;
-                  if (state === "completed" || state === "succeeded") {
-                    const outputs = pollJson.outputs || [];
-                    const rawOutput = outputs[0] || pollJson.output;
-                    let outputText = "";
-                    if (typeof rawOutput === "string") {
-                      outputText = rawOutput;
-                    } else if (rawOutput && rawOutput.text) {
-                      outputText = rawOutput.text;
-                    } else if (pollJson.result) {
-                      outputText = typeof pollJson.result === "string" ? pollJson.result : JSON.stringify(pollJson.result);
+          const geminiRes = await fetch(geminiEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: "user",
+                  parts: [
+                    {
+                      text: `${systemPrompt}\n\n${prompt}`
                     }
-                    if (outputText) {
-                      reportData = outputText;
-                      status = "completed";
-                      completed = true;
-                    }
-                  } else if (state === "failed") {
-                    console.error("MuAPI generation failed:", pollJson.error);
-                    status = "failed";
-                    break;
-                  }
+                  ]
                 }
-              } catch (pollErr) {
-                console.error("MuAPI polling error:", pollErr);
+              ],
+              generationConfig: {
+                responseMimeType: "application/json",
+                temperature: 0.7
+              }
+            })
+          });
+
+          if (geminiRes.ok) {
+            const geminiData = await geminiRes.json();
+            const textOutput = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (textOutput) {
+              reportData = textOutput;
+              status = "completed";
+            } else {
+              throw new Error("Empty candidate output from Gemini API");
+            }
+          } else {
+            const errBody = await geminiRes.text();
+            console.error("Gemini API error:", geminiRes.status, errBody);
+            throw new Error(`Gemini API error status: ${geminiRes.status}`);
+          }
+        } else {
+          // Legacy MuAPI fallback
+          const webhookUrl = `${config.auth.webhook_url}/api/webhook/muapi`;
+          const submitUrl = `https://api.muapi.ai/api/v1/any-llm-models?webhook=${encodeURIComponent(webhookUrl)}`;
+
+          const inputPayload = {
+            prompt,
+            system_prompt: systemPrompt,
+            model: "google/gemini-2.5-flash",
+            temperature: 1
+          };
+
+          const submitRes = await fetch(submitUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": apiKey
+            },
+            body: JSON.stringify(inputPayload)
+          });
+
+          if (submitRes.ok) {
+            const resJson = await submitRes.json();
+            const reqId = resJson.request_id || resJson.id;
+            if (reqId) {
+              requestId = reqId;
+
+              // Poll for result (max 15s)
+              let completed = false;
+              let attempts = 0;
+              const maxAttempts = 6;
+
+              while (!completed && attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 2500));
+                attempts++;
+
+                try {
+                  const pollRes = await fetch(`https://api.muapi.ai/api/v1/predictions/${requestId}/result`, {
+                    method: "GET",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "x-api-key": apiKey
+                    }
+                  });
+
+                  if (pollRes.ok) {
+                    const pollJson = await pollRes.json();
+                    const state = pollJson.status || pollJson.state;
+                    if (state === "completed" || state === "succeeded") {
+                      const outputs = pollJson.outputs || [];
+                      const rawOutput = outputs[0] || pollJson.output;
+                      let outputText = "";
+                      if (typeof rawOutput === "string") {
+                        outputText = rawOutput;
+                      } else if (rawOutput && rawOutput.text) {
+                        outputText = rawOutput.text;
+                      } else if (pollJson.result) {
+                        outputText = typeof pollJson.result === "string" ? pollJson.result : JSON.stringify(pollJson.result);
+                      }
+                      if (outputText) {
+                        reportData = outputText;
+                        status = "completed";
+                        completed = true;
+                      }
+                    } else if (state === "failed") {
+                      console.error("MuAPI generation failed:", pollJson.error);
+                      status = "failed";
+                      break;
+                    }
+                  }
+                } catch (pollErr) {
+                  console.error("MuAPI polling error:", pollErr);
+                }
               }
             }
           }
         }
       } catch (err) {
-        console.warn("MuAPI call failed, falling back to mocks:", err.message);
+        console.warn("AI generation failed, falling back to mocks:", err.message);
       }
     } else {
       // Mock mode fallback

@@ -3,69 +3,77 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
 
+const providers = [
+  CredentialsProvider({
+    id: "credentials",
+    name: "API Key",
+    credentials: {
+      apiKey: { label: "Gemini API Key", type: "password" },
+    },
+    async authorize(credentials) {
+      if (!credentials?.apiKey) {
+        throw new Error("API Key is required");
+      }
+      const apiKey = credentials.apiKey.trim();
+      if (apiKey.length < 5) {
+        throw new Error("Invalid API key format");
+      }
+
+      const dummyEmail = `apikey_${apiKey.slice(-8)}@muapi.local`;
+      let dbUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { customApiKey: apiKey },
+            { email: dummyEmail }
+          ]
+        }
+      });
+
+      if (!dbUser) {
+        dbUser = await prisma.user.create({
+          data: {
+            name: "API Key User",
+            email: dummyEmail,
+            customApiKey: apiKey,
+            credits: 0,
+          }
+        });
+      } else if (!dbUser.customApiKey) {
+        dbUser = await prisma.user.update({
+          where: { id: dbUser.id },
+          data: { customApiKey: apiKey }
+        });
+      }
+
+      return {
+        id: dbUser.id,
+        name: dbUser.name,
+        email: dbUser.email,
+        image: dbUser.image || null,
+        credits: dbUser.credits,
+        customApiKey: dbUser.customApiKey || apiKey,
+        isApiKeyUser: true,
+      };
+    }
+  }),
+];
+
+// Only enable Google OAuth if credentials are configured
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  providers.push(
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    })
+  );
+}
+
 export const authOptions = {
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: "jwt",
   },
-  providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
-    CredentialsProvider({
-      id: "credentials",
-      name: "API Key",
-      credentials: {
-        apiKey: { label: "MuAPI Key", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.apiKey) {
-          throw new Error("API Key is required");
-        }
-        const apiKey = credentials.apiKey.trim();
-        if (apiKey.length < 5) {
-          throw new Error("Invalid API key format");
-        }
-
-        const dummyEmail = `apikey_${apiKey.slice(-8)}@muapi.local`;
-        let dbUser = await prisma.user.findFirst({
-          where: {
-            OR: [
-              { customApiKey: apiKey },
-              { email: dummyEmail }
-            ]
-          }
-        });
-
-        if (!dbUser) {
-          dbUser = await prisma.user.create({
-            data: {
-              name: "API Key User",
-              email: dummyEmail,
-              customApiKey: apiKey,
-              credits: 0,
-            }
-          });
-        } else if (!dbUser.customApiKey) {
-          dbUser = await prisma.user.update({
-            where: { id: dbUser.id },
-            data: { customApiKey: apiKey }
-          });
-        }
-
-        return {
-          id: dbUser.id,
-          name: dbUser.name,
-          email: dbUser.email,
-          image: dbUser.image || null,
-          credits: dbUser.credits,
-          customApiKey: dbUser.customApiKey || apiKey,
-          isApiKeyUser: true,
-        };
-      }
-    }),
-  ],
+  providers,
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       if (user) {
