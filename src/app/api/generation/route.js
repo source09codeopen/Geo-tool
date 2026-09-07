@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import config from "../../../lib/config";
+import { getCrawlerStatus } from "../../../lib/crawlerStatus";
 
 // Extend Vercel function timeout to 60s (Hobby plan supports up to 60s)
 export const maxDuration = 60;
@@ -168,6 +169,13 @@ export async function POST(req) {
       }
     }
 
+    // Real, deterministic crawler-permission check (not LLM-guessed) — runs
+    // independently of the scrape/page-discovery above.
+    const crawlerStatus = await getCrawlerStatus(new URL(absoluteUrl).origin).catch((e) => {
+      console.warn("Crawler status check failed:", e.message);
+      return [];
+    });
+
     // 3. Prepare Prompts
     const systemPrompt = `You are an expert Generative Engine Optimization (GEO) auditor and AI Search Visibility specialist.
 Your task is to analyze the scraped website text and evaluate how well it is optimized to be cited, referenced, and surfaced in AI-driven search answers (ChatGPT, Perplexity, Google AI Overviews, Claude, Gemini) for the user's target search query.
@@ -192,13 +200,39 @@ You MUST respond with a single, valid JSON object matching this schema exactly:
     "schema_markup": "Status profile here",
     "sitemap": "Status profile here"
   },
-  "recommendations": [
+  "engine_breakdown": [
     {
-      "area": "Category area",
-      "priority": "High/Medium/Low",
-      "tips": "Detailed recommendation text..."
+      "engine": "ChatGPT Search",
+      "score": 60,
+      "note": "One sentence on this page's odds via OAI-SearchBot crawling and Bing real-time indexation."
+    },
+    {
+      "engine": "Perplexity AI",
+      "score": 55,
+      "note": "One sentence on citation odds given Perplexity's preference for academic, structured, high-authority sources."
+    },
+    {
+      "engine": "Google Gemini / AI Overviews",
+      "score": 70,
+      "note": "One sentence based on Knowledge Graph entities, Schema markup, and organic Google SERP ranking signals."
+    },
+    {
+      "engine": "Claude",
+      "score": 40,
+      "note": "One sentence on markdown cleanliness, concise formatting, and llms.txt presence."
     }
   ],
+  "impact_effort_matrix": {
+    "quick_wins": [
+      "High-impact, low-effort fix, e.g. deploying llms.txt or unblocking an AI crawler in robots.txt"
+    ],
+    "strategic_growth": [
+      "High-impact, high-effort fix, e.g. building a JSON-LD entity graph or publishing original research"
+    ],
+    "low_priority": [
+      "Low-impact, low-effort fix, e.g. a minor syntax tweak on a low-traffic page"
+    ]
+  },
   "code_fixes": [
     {
       "title": "Short title, e.g. 'Add Organization Schema'",
@@ -217,7 +251,11 @@ You MUST respond with a single, valid JSON object matching this schema exactly:
         "Specific, actionable fix tailored to THIS page's actual title/content (not generic)",
         "Second specific fix for this page",
         "Third specific fix for this page"
-      ]
+      ],
+      "meta_fix": {
+        "title": "Exact <title> tag text for THIS page, ~50-60 chars, tailored to its own content and the keyword",
+        "description": "Exact meta description text for THIS page, ~150-160 chars"
+      }
     }
   ]
 }
@@ -228,7 +266,11 @@ Populate "code_fixes" with exactly these 4 entries, tailored to the actual scrap
 3. type "llms-txt": A draft /llms.txt file (the emerging llms.txt standard) summarizing the site's purpose, key pages, and the target keyword's topic for LLM consumption.
 4. type "meta-tags": Improved <title> and <meta name="description"> tags optimized for the target keyword and AI citation, sized appropriately (title ~50-60 chars, description ~150-160 chars).
 
-Populate "page_reports" with ONE entry for EVERY page listed under "SITE PAGES" below (including the homepage), in the same order. Base each page's score, summary, and fixes strictly on THAT page's own title and content — never repeat the same generic advice across pages; each page's fixes must reference something specific to its own title/content.
+Populate "page_reports" with ONE entry for EVERY page listed under "SITE PAGES" below (including the homepage), in the same order. Base each page's score, summary, fixes, and meta_fix strictly on THAT page's own title and content — never repeat the same generic advice or the same meta tags across pages; each page's output must reference something specific to its own title/content.
+
+Populate "engine_breakdown" with exactly the 4 entries shown, scoring how well THIS specific content would perform for each engine's distinct retrieval mechanism. These are your expert estimates, not live measurements.
+
+Populate "impact_effort_matrix" by sorting your recommendations into three buckets: "quick_wins" (high impact, low effort — 2-4 items), "strategic_growth" (high impact, high effort — 2-4 items), "low_priority" (low impact, low effort — 1-3 items). Every item must be specific and actionable for this site, not generic advice.
 
 DO NOT return any text outside of the JSON object. Do not wrap the JSON object in markdown blocks like \`\`\`json ... \`\`\`. Just return the raw JSON object string.`;
 
@@ -419,18 +461,26 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
           schema_markup: "Missing structured Schema markup.",
           sitemap: "Sitemap xml path not declared in header meta."
         },
-        recommendations: [
-          {
-            area: "Technical GEO",
-            priority: "High",
-            tips: "Configure robots.txt to explicitly welcome AI parsers (e.g. GPTBot, PerplexityBot) and reference a clean LLM text standard file."
-          },
-          {
-            area: "Entity & Schema",
-            priority: "Medium",
-            tips: "Inject Organization and FAQ Schema structures to allow crawlers to easily extract key organizational entities and questions/answers."
-          }
+        engine_breakdown: [
+          { engine: "ChatGPT Search", score: Math.floor(Math.random() * 30) + 50, note: "OAI-SearchBot can reach the page, but thin structured data limits citation confidence." },
+          { engine: "Perplexity AI", score: Math.floor(Math.random() * 30) + 40, note: "Lacks the academic/authority signal density Perplexity favors for citations." },
+          { engine: "Google Gemini / AI Overviews", score: Math.floor(Math.random() * 30) + 55, note: "Moderate organic signal, but missing Knowledge Graph entity presence." },
+          { engine: "Claude", score: Math.floor(Math.random() * 30) + 35, note: "No llms.txt and inconsistent heading structure reduce Claude's parsing confidence." }
         ],
+        impact_effort_matrix: {
+          quick_wins: [
+            "Deploy an llms.txt file summarizing the site for LLM consumption.",
+            "Unblock GPTBot and PerplexityBot in robots.txt.",
+            "Fix duplicate/missing title tags site-wide."
+          ],
+          strategic_growth: [
+            "Build a full JSON-LD entity graph (Organization + key pages).",
+            "Publish original research or case studies to strengthen E-E-A-T."
+          ],
+          low_priority: [
+            "Minor heading syntax cleanup on low-traffic utility pages."
+          ]
+        },
         code_fixes: [
           {
             title: "Add Organization Schema",
@@ -467,7 +517,11 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
               "Add Organization schema to the homepage <head>.",
               "Mention the target keyword in the first 100 words of visible copy.",
               "Add an FAQ section addressing common questions about the keyword."
-            ]
+            ],
+            meta_fix: {
+              title: `${keyword} | ${url}`,
+              description: `Learn about ${keyword} on ${url}. Clear, authoritative, and up to date.`
+            }
           },
           ...sitePages.slice(0, 2).map((page) => ({
             url: page.url,
@@ -478,7 +532,11 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
               `Align the page title more closely with "${keyword}".`,
               "Add descriptive alt text and headings referencing the target topic.",
               "Link back to the homepage with keyword-rich anchor text."
-            ]
+            ],
+            meta_fix: {
+              title: `${page.title || keyword} | ${url}`,
+              description: `${page.title || "This page"} covers ${keyword}-related information on ${url}.`
+            }
           }))
         ]
       });
@@ -486,7 +544,14 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
     }
 
     // 5. Return report directly (no persistence — audits are stateless/anonymous)
-    const cleanedReport = cleanJsonString(reportData);
+    let cleanedReport = cleanJsonString(reportData);
+    try {
+      const parsed = JSON.parse(cleanedReport);
+      parsed.crawler_status = crawlerStatus;
+      cleanedReport = JSON.stringify(parsed);
+    } catch (e) {
+      console.warn("Failed to inject crawler_status into report:", e.message);
+    }
 
     return NextResponse.json({
       reportData: cleanedReport,

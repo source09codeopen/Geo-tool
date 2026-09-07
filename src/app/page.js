@@ -20,6 +20,7 @@ import {
   FaChartBar,
   FaBrain,
   FaKey,
+  FaSync,
 } from "react-icons/fa";
 import clsx from "clsx";
 
@@ -45,23 +46,31 @@ export default function StudioPage() {
 
   // Report branding (for client-facing PDF export)
   const [brandName, setBrandName] = useState("");
-  const [copiedFixIndex, setCopiedFixIndex] = useState(null);
+  const [copiedKey, setCopiedKey] = useState(null);
+
+  // Real, re-checkable AI crawler permission status
+  const [crawlerStatus, setCrawlerStatus] = useState([]);
+  const [recheckingCrawlers, setRecheckingCrawlers] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("geo_report_brand_name");
     if (saved) setBrandName(saved);
   }, []);
 
+  useEffect(() => {
+    setCrawlerStatus(result?.crawler_status || []);
+  }, [result]);
+
   const handleBrandNameChange = (value) => {
     setBrandName(value);
     window.localStorage.setItem("geo_report_brand_name", value);
   };
 
-  const handleCopyCode = async (code, idx) => {
+  const handleCopyCode = async (code, key) => {
     try {
       await navigator.clipboard.writeText(code);
-      setCopiedFixIndex(idx);
-      setTimeout(() => setCopiedFixIndex(null), 2000);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
     } catch (e) {
       console.error("Failed to copy code:", e);
     }
@@ -71,10 +80,36 @@ export default function StudioPage() {
     window.print();
   };
 
+  const handleRecheckCrawlers = async () => {
+    if (!url) return;
+    setRecheckingCrawlers(true);
+    try {
+      const res = await fetch("/api/recheck-crawlers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCrawlerStatus(data.crawler_status || []);
+      }
+    } catch (e) {
+      console.error("Failed to re-test crawlers:", e);
+    } finally {
+      setRecheckingCrawlers(false);
+    }
+  };
+
   const scoreBadgeClass = (score) => {
     if (score >= 70) return "bg-emerald-950/30 text-emerald-400 border-emerald-900/40";
     if (score >= 40) return "bg-amber-950/30 text-amber-400 border-amber-800/40";
     return "bg-red-950/30 text-red-400 border-red-900/40";
+  };
+
+  const crawlerBadgeClass = (status) => {
+    if (status === "Allowed") return "bg-emerald-950/30 text-emerald-400 border-emerald-900/40";
+    if (status === "Blocked") return "bg-red-950/30 text-red-400 border-red-900/40";
+    return "bg-amber-950/30 text-amber-400 border-amber-800/40";
   };
 
   // Progress Loader text simulator
@@ -799,6 +834,51 @@ export default function StudioPage() {
             </div>
           </div>
 
+          {/* Row 1.5: Engine-Specific Visibility Breakdown */}
+          {result.engine_breakdown?.length > 0 && (
+            <div className="bg-bg-card/30 border border-divider/50 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-divider/50 pb-2.5">
+                <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider">
+                  Engine-Specific Visibility Breakdown
+                </span>
+                <span className="text-[9px] text-secondary-text font-medium italic">
+                  AI-estimated per engine
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {result.engine_breakdown.map((eng, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-bg-page border border-divider/50 rounded-2xl p-4 space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-primary-text">
+                        {eng.engine}
+                      </span>
+                      <span
+                        className={clsx(
+                          "text-[10px] font-black px-2 py-0.5 rounded border flex-shrink-0",
+                          scoreBadgeClass(eng.score),
+                        )}
+                      >
+                        {eng.score}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-bg-card rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full"
+                        style={{ width: `${eng.score}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-secondary-text leading-relaxed">
+                      {eng.note}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Row 2: Summary Card */}
           <div className="bg-bg-card/30 border border-divider/50 rounded-2xl p-6 shadow-md">
             <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider block mb-2">
@@ -852,10 +932,10 @@ export default function StudioPage() {
             </div>
           </div>
 
-          {/* Row 4: Split Technical Signals and Recommendations */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Technical Crawler card (1 Col) */}
-            <div className="lg:col-span-1 bg-bg-card/30 border border-divider/50 rounded-2xl p-6 flex flex-col justify-between">
+          {/* Row 4: Technical Signals + Real AI Crawler Access Status */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Technical Crawler card */}
+            <div className="bg-bg-card/30 border border-divider/50 rounded-2xl p-6 flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider block border-b border-divider/50 pb-2.5">
                   Technical Crawler Signals
@@ -896,42 +976,115 @@ export default function StudioPage() {
               </div>
             </div>
 
-            {/* Recommendations Roadmap (2 Cols) */}
-            <div className="lg:col-span-2 bg-bg-card/30 border border-divider/50 rounded-2xl p-6 space-y-4">
-              <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider block border-b border-divider/50 pb-2.5">
-                Actionable Optimization Roadmap
-              </span>
-              <div className="space-y-3">
-                {result.recommendations?.map((rec, idx) => (
-                  <div
-                    key={idx}
-                    className="p-4 bg-bg-page border border-divider/50 rounded-2xl flex items-start gap-4 hover:border-divider transition-colors"
-                  >
-                    <div
-                      className={clsx(
-                        "text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded text-center flex-shrink-0 mt-0.5",
-                        rec.priority === "High"
-                          ? "bg-red-955/20 text-red-455 border border-red-900/30"
-                          : rec.priority === "Medium"
-                            ? "bg-amber-955/20 text-amber-400 border border-amber-800/30"
-                            : "bg-bg-card text-secondary-text border border-divider/50",
-                      )}
-                    >
-                      {rec.priority}
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-xs font-black text-primary-text">
-                        {rec.area}
-                      </div>
-                      <div className="text-xs text-secondary-text leading-relaxed font-medium">
-                        {rec.tips}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+            {/* Real AI Crawler Access Status (live-checked robots.txt, not LLM-guessed) */}
+            <div className="bg-bg-card/30 border border-divider/50 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-divider/50 pb-2.5">
+                <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider">
+                  AI Crawler Access Status
+                </span>
+                <button
+                  onClick={handleRecheckCrawlers}
+                  disabled={recheckingCrawlers}
+                  className="print:hidden flex items-center gap-1.5 text-[10px] font-bold text-primary hover:text-primary-hover transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <FaSync className={clsx("text-[9px]", recheckingCrawlers && "animate-spin")} />
+                  {recheckingCrawlers ? "Re-testing..." : "Re-Test URL"}
+                </button>
               </div>
+              <div className="space-y-2">
+                {crawlerStatus.length > 0 ? (
+                  crawlerStatus.map((c, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between text-xs font-semibold text-primary-text"
+                    >
+                      <span>{c.bot}</span>
+                      <span
+                        className={clsx(
+                          "text-[10px] font-bold px-2.5 py-1 rounded-full border",
+                          crawlerBadgeClass(c.status),
+                        )}
+                      >
+                        {c.status}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-secondary-text">
+                    Crawler status unavailable for this scan.
+                  </p>
+                )}
+              </div>
+              <p className="text-[10px] text-secondary-text leading-relaxed border-t border-divider/30 pt-3">
+                Checked live against this site's robots.txt — not an AI estimate.
+                Use Re-Test after deploying a fix.
+              </p>
             </div>
           </div>
+
+          {/* Row 4.5: Impact vs Effort Execution Matrix */}
+          {result.impact_effort_matrix && (
+            <div className="space-y-4">
+              <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider block">
+                Impact vs Effort Execution Matrix
+              </span>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Quick Wins */}
+                <div className="bg-bg-card/30 border border-emerald-900/40 rounded-2xl p-6 space-y-3">
+                  <div className="text-xs font-black text-emerald-400 uppercase tracking-wider">
+                    Quick Wins
+                  </div>
+                  <p className="text-[9px] text-secondary-text uppercase tracking-wide font-bold">
+                    High Impact &middot; Low Effort
+                  </p>
+                  <ul className="space-y-2.5 pt-1">
+                    {result.impact_effort_matrix.quick_wins?.map((item, idx) => (
+                      <li key={idx} className="text-xs text-primary-text leading-relaxed flex items-start gap-2">
+                        <FaCheck className="text-emerald-400 text-[10px] flex-shrink-0 mt-0.5" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Strategic Growth */}
+                <div className="bg-bg-card/30 border border-primary/40 rounded-2xl p-6 space-y-3">
+                  <div className="text-xs font-black text-primary uppercase tracking-wider">
+                    Strategic Growth
+                  </div>
+                  <p className="text-[9px] text-secondary-text uppercase tracking-wide font-bold">
+                    High Impact &middot; High Effort
+                  </p>
+                  <ul className="space-y-2.5 pt-1">
+                    {result.impact_effort_matrix.strategic_growth?.map((item, idx) => (
+                      <li key={idx} className="text-xs text-primary-text leading-relaxed flex items-start gap-2">
+                        <FaChartBar className="text-primary text-[10px] flex-shrink-0 mt-0.5" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Low Priority */}
+                <div className="bg-bg-card/30 border border-divider/50 rounded-2xl p-6 space-y-3">
+                  <div className="text-xs font-black text-secondary-text uppercase tracking-wider">
+                    Low Priority
+                  </div>
+                  <p className="text-[9px] text-secondary-text uppercase tracking-wide font-bold">
+                    Low Impact &middot; Low Effort
+                  </p>
+                  <ul className="space-y-2.5 pt-1">
+                    {result.impact_effort_matrix.low_priority?.map((item, idx) => (
+                      <li key={idx} className="text-xs text-secondary-text leading-relaxed flex items-start gap-2">
+                        <span className="text-secondary-text flex-shrink-0">&middot;</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Row 5: Copy-Paste Ready Fixes */}
           {result.code_fixes?.length > 0 && (
@@ -956,10 +1109,10 @@ export default function StudioPage() {
                         </div>
                       </div>
                       <button
-                        onClick={() => handleCopyCode(fix.code, idx)}
+                        onClick={() => handleCopyCode(fix.code, `code-${idx}`)}
                         className="print:hidden flex items-center gap-1.5 px-2.5 py-1.5 bg-bg-card border border-divider/50 hover:border-primary text-secondary-text hover:text-primary-text rounded text-[10px] font-bold transition-all cursor-pointer flex-shrink-0"
                       >
-                        {copiedFixIndex === idx ? (
+                        {copiedKey === `code-${idx}` ? (
                           <>
                             <FaCheck className="text-emerald-400" /> Copied
                           </>
@@ -1033,6 +1186,37 @@ export default function StudioPage() {
                           </li>
                         ))}
                       </ul>
+                    )}
+                    {page.meta_fix && (
+                      <div className="border-t border-divider/30 pt-2 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-bold text-secondary-text uppercase tracking-wider">
+                            Copy-Paste Meta Fix
+                          </span>
+                          <button
+                            onClick={() =>
+                              handleCopyCode(
+                                `<title>${page.meta_fix.title}</title>\n<meta name="description" content="${page.meta_fix.description}" />`,
+                                `page-${idx}-meta`,
+                              )
+                            }
+                            className="print:hidden flex items-center gap-1 px-2 py-1 bg-bg-card border border-divider/50 hover:border-primary text-secondary-text hover:text-primary-text rounded text-[9px] font-bold transition-all cursor-pointer"
+                          >
+                            {copiedKey === `page-${idx}-meta` ? (
+                              <>
+                                <FaCheck className="text-emerald-400" /> Copied
+                              </>
+                            ) : (
+                              <>
+                                <FaCopy /> Copy
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <pre className="bg-black/30 border border-divider/30 rounded-lg p-2.5 text-[9px] text-primary-text overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+                          <code>{`<title>${page.meta_fix.title}</title>\n<meta name="description" content="${page.meta_fix.description}" />`}</code>
+                        </pre>
+                      </div>
                     )}
                   </div>
                 ))}
