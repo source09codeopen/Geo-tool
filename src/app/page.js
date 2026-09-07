@@ -26,7 +26,8 @@ import clsx from "clsx";
 const ENGINES = [
   { id: "chatgpt", name: "ChatGPT" },
   { id: "perplexity", name: "Perplexity" },
-  { id: "gemini", name: "Gemini" },
+  { id: "google", name: "Google AI Overviews" },
+  { id: "gemini", name: "Gemini Pro" },
   { id: "claude", name: "Claude" },
 ];
 
@@ -34,7 +35,7 @@ export default function StudioPage() {
   // Inputs
   const [url, setUrl] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [engines, setEngines] = useState(["chatgpt", "perplexity", "gemini", "claude"]);
+  const [engines, setEngines] = useState(["chatgpt", "perplexity", "google", "gemini", "claude"]);
 
   // States
   const [result, setResult] = useState(null);
