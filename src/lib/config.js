@@ -1,5 +1,5 @@
 const config = {
-  appName: "Geo Checker",
+  appName: "Synapcite",
   auth: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID,

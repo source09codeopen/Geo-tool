@@ -17,7 +17,7 @@ const outfit = Outfit({
 });
 
 export const metadata = {
-  title: "GEO Checker - AI Search Visibility & SEO Auditor",
+  title: "Synapcite - AI Search Visibility & SEO Auditor",
   description: "Audit and optimize your website for AI search engines like ChatGPT Search, Google AI Overviews, Perplexity, Claude, and Gemini.",
 };
 

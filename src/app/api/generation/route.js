@@ -52,7 +52,7 @@ async function discoverAdditionalPages(baseUrl, homepageHtml, maxPages) {
     const sitemapTimeout = setTimeout(() => sitemapController.abort(), 3500);
     const sitemapRes = await fetch(`${origin}/sitemap.xml`, {
       signal: sitemapController.signal,
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; GEOCheckerBot/1.0)" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; SynapciteBot/1.0)" },
     });
     clearTimeout(sitemapTimeout);
 

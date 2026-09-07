@@ -1,11 +1,11 @@
-# 🌐 GEO Checker — Open-Source AI Generative Engine Optimization (GEO) Auditor SaaS (Free SEMrush / Surfer SEO Alternative)
+# 🌐 Synapcite — Open-Source AI Generative Engine Optimization (GEO) Auditor SaaS (Free SEMrush / Surfer SEO Alternative)
 
 > **Audit your landing page's AI search visibility and citation potential in seconds.** A production-ready, self-hostable Next.js SaaS boilerplate for marketers, SEO agencies, and developers — checks how well pages are indexed and cited by AI search engines like ChatGPT, Perplexity, and Gemini. A free open-source alternative to SEMrush, Surfer SEO, and enterprise GEO auditing suites — powered by the MuAPI AI engine.
 
 **Tech stack:** Next.js 14 (App Router) · Prisma · PostgreSQL · NextAuth (Google OAuth) · Stripe · Tailwind CSS · MuAPI (Gemini 2.5 Flash via any-llm)
 **Use cases:** Marketing agency SEO reports · Landing page AI visibility audits · Pre-launch GEO optimization · Content teams · Startup growth · SaaS product pages · AI search ranking research · SEO consultants
 
-![GEO Checker Interface Screenshot](https://cdn.muapi.ai/data/2/253532639651/Screenshot_2026-05-28_192431.png)
+![Synapcite Interface Screenshot](https://cdn.muapi.ai/data/2/253532639651/Screenshot_2026-05-28_192431.png)
 
 <p align="center">
   <a href="https://github.com/Anil-matcha/awesome-generative-ai-apps">
@@ -28,9 +28,9 @@
 
 ---
 
-GEO Checker is a production-ready, highly-optimized AI web application. Out of the box, it seamlessly manages User Authentication, Credits & Billing, Website HTML Scraping, and asynchronous deep AI reviews using a sleek Next.js (App Router) architecture. It empowers users, agencies, and developers to analyze website copy against LLM indexing rules — all within a stunning visual dashboard.
+Synapcite is a production-ready, highly-optimized AI web application. Out of the box, it seamlessly manages Website HTML Scraping and deep AI reviews using a sleek Next.js (App Router) architecture. It empowers users, agencies, and developers to analyze website copy against LLM indexing rules — all within a stunning visual dashboard.
 
-**Why use GEO Checker?**
+**Why use Synapcite?**
 
 - **Production-Ready SaaS** — Complete with Google OAuth and Stripe Checkout workflows built-in.
 - **Virtual GEO Audit Studio** — Enter any landing page URL and your target keyword niche to get immediate optimization reviews.
@@ -170,7 +170,7 @@ The workspace database is shared with other applications. Running `npx prisma db
 ## 🏗️ Technical Architecture
 
 ```
-geo-checker/
+synapcite/
 ├── prisma/
 │   └── schema.prisma           # Postgres schema (User, Account, Session, GeoReport)
 ├── src/
@@ -208,4 +208,4 @@ MIT Licensed.
 
 ---
 
-_GEO Checker: A premium, dark-mode, fully responsive Generative Engine Optimization audit suite built for modern search visibility analysis._
+_Synapcite: A premium, dark-mode, fully responsive Generative Engine Optimization audit suite built for modern search visibility analysis._
