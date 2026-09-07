@@ -102,11 +102,12 @@ async function scrapePageForReport(pageUrl, maxChars) {
 }
 
 // Google's own Gemini API occasionally returns 503 "high demand" during
-// traffic spikes — retry once briefly before giving up, per their own
-// guidance that these spikes are usually temporary.
-async function fetchGeminiWithRetry(endpoint, requestBody, { timeoutMs = 20000, maxAttempts = 2, retryDelayMs = 1500 } = {}) {
+// traffic spikes. We retry ONLY on those fast upstream failures (503/429) —
+// a full multi-page audit prompt legitimately takes 20-35s to generate, so a
+// timeout (AbortError) means the call was working, not failing; retrying it
+// would just burn the remaining serverless budget on the same slow request.
+async function fetchGeminiWithRetry(endpoint, requestBody, { timeoutMs = 40000, maxAttempts = 2, retryDelayMs = 1500 } = {}) {
   let lastRes = null;
-  let lastErr = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const controller = new AbortController();
@@ -120,8 +121,8 @@ async function fetchGeminiWithRetry(endpoint, requestBody, { timeoutMs = 20000, 
       });
       clearTimeout(timeout);
 
-      if (res.ok || attempt === maxAttempts) return res;
-      if (res.status === 503 || res.status === 429) {
+      // Retry only transient upstream overload, and only if we have an attempt left.
+      if ((res.status === 503 || res.status === 429) && attempt < maxAttempts) {
         lastRes = res;
         await new Promise((r) => setTimeout(r, retryDelayMs * attempt));
         continue;
@@ -129,14 +130,13 @@ async function fetchGeminiWithRetry(endpoint, requestBody, { timeoutMs = 20000, 
       return res;
     } catch (err) {
       clearTimeout(timeout);
-      lastErr = err;
-      if (attempt === maxAttempts) throw err;
-      await new Promise((r) => setTimeout(r, retryDelayMs * attempt));
+      // A timeout / network abort is terminal — do not retry (it would double
+      // the wait on an already slow call and risk the 60s function limit).
+      throw err;
     }
   }
 
-  if (lastRes) return lastRes;
-  throw lastErr || new Error("Gemini request failed after retries");
+  return lastRes;
 }
 
 function cleanJsonString(str) {
@@ -193,26 +193,29 @@ export async function POST(req) {
       scrapingBlocked = true;
     }
 
-    // Full-site scan: discover up to 9 more pages (10 total incl. homepage) and scrape them in parallel
-    let sitePages = [];
-    if (!scrapingBlocked) {
+    // Full-site scan + real crawler-permission check run concurrently to stay
+    // within the 60s function budget (both are independent of the AI call).
+    const discoverPages = async () => {
+      if (scrapingBlocked) return [];
       try {
         const additionalUrls = await discoverAdditionalPages(absoluteUrl, homepageHtml, 9);
         const scraped = await Promise.all(
           additionalUrls.map((pageUrl) => scrapePageForReport(pageUrl, 2000)),
         );
-        sitePages = scraped.filter((p) => p && p.text);
+        return scraped.filter((p) => p && p.text);
       } catch (e) {
         console.warn("Site-wide page discovery failed:", e.message);
+        return [];
       }
-    }
+    };
 
-    // Real, deterministic crawler-permission check (not LLM-guessed) — runs
-    // independently of the scrape/page-discovery above.
-    const crawlerStatus = await getCrawlerStatus(new URL(absoluteUrl).origin).catch((e) => {
-      console.warn("Crawler status check failed:", e.message);
-      return [];
-    });
+    const [sitePages, crawlerStatus] = await Promise.all([
+      discoverPages(),
+      getCrawlerStatus(new URL(absoluteUrl).origin).catch((e) => {
+        console.warn("Crawler status check failed:", e.message);
+        return [];
+      }),
+    ]);
 
     // 3. Prepare Prompts
     const systemPrompt = `You are an expert Generative Engine Optimization (GEO) auditor and AI Search Visibility specialist.
