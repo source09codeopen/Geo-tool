@@ -123,8 +123,22 @@ You MUST respond with a single, valid JSON object matching this schema exactly:
       "priority": "High/Medium/Low",
       "tips": "Detailed recommendation text..."
     }
+  ],
+  "code_fixes": [
+    {
+      "title": "Short title, e.g. 'Add Organization Schema'",
+      "type": "json-ld",
+      "description": "One sentence on why this specific fix helps AI citation for this page.",
+      "code": "Complete, ready-to-paste code. For json-ld: a full <script type=\\"application/ld+json\\">...</script> block populated with real values inferred from the scraped page (name, description, url) — never placeholders like 'Your Company'."
+    }
   ]
 }
+
+Populate "code_fixes" with exactly these 4 entries, tailored to the actual scraped page content, target keyword, and target URL (never generic placeholders):
+1. type "json-ld": A complete Organization or WebPage JSON-LD block (as a full <script> tag) reflecting the real page content.
+2. type "robots-txt": Concrete robots.txt lines that explicitly allow the major AI crawlers — GPTBot, ChatGPT-User, ClaudeBot, PerplexityBot, Google-Extended, CCBot, Amazonbot — plus the existing site structure if inferable.
+3. type "llms-txt": A draft /llms.txt file (the emerging llms.txt standard) summarizing the site's purpose, key pages, and the target keyword's topic for LLM consumption.
+4. type "meta-tags": Improved <title> and <meta name="description"> tags optimized for the target keyword and AI citation, sized appropriately (title ~50-60 chars, description ~150-160 chars).
 
 DO NOT return any text outside of the JSON object. Do not wrap the JSON object in markdown blocks like \`\`\`json ... \`\`\`. Just return the raw JSON object string.`;
 
@@ -321,6 +335,32 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
             area: "Entity & Schema",
             priority: "Medium",
             tips: "Inject Organization and FAQ Schema structures to allow crawlers to easily extract key organizational entities and questions/answers."
+          }
+        ],
+        code_fixes: [
+          {
+            title: "Add Organization Schema",
+            type: "json-ld",
+            description: "Gives AI crawlers a structured, unambiguous entity to cite for your brand.",
+            code: `<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Organization",\n  "name": "${url}",\n  "url": "https://${url}"\n}\n</script>`
+          },
+          {
+            title: "Welcome AI Crawlers in robots.txt",
+            type: "robots-txt",
+            description: "Explicitly allows the major AI search crawlers to index this page for citation.",
+            code: `User-agent: GPTBot\nAllow: /\n\nUser-agent: ChatGPT-User\nAllow: /\n\nUser-agent: ClaudeBot\nAllow: /\n\nUser-agent: PerplexityBot\nAllow: /\n\nUser-agent: Google-Extended\nAllow: /\n\nUser-agent: CCBot\nAllow: /`
+          },
+          {
+            title: "Add an llms.txt file",
+            type: "llms-txt",
+            description: "Summarizes your site for LLMs in the emerging llms.txt standard, improving how AI engines understand and cite your content.",
+            code: `# ${url}\n\n> Summary of the site for the keyword "${keyword}".\n\n## Key Pages\n- Home: https://${url}`
+          },
+          {
+            title: "Optimize Title & Meta Description",
+            type: "meta-tags",
+            description: "Aligns your on-page metadata with the target keyword to improve AI citation relevance.",
+            code: `<title>${keyword} | ${url}</title>\n<meta name="description" content="Learn about ${keyword} on ${url}. Clear, authoritative, and up to date." />`
           }
         ]
       });

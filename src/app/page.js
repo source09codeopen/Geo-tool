@@ -20,6 +20,10 @@ import {
   FaDownload,
   FaUndo,
   FaAngleDoubleRight,
+  FaCopy,
+  FaCheck,
+  FaFilePdf,
+  FaCode,
 } from "react-icons/fa";
 import clsx from "clsx";
 
@@ -66,6 +70,34 @@ export default function StudioPage() {
 
   // Advanced toggles container visibility
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Report branding (for client-facing PDF export)
+  const [brandName, setBrandName] = useState("");
+  const [copiedFixIndex, setCopiedFixIndex] = useState(null);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("geo_report_brand_name");
+    if (saved) setBrandName(saved);
+  }, []);
+
+  const handleBrandNameChange = (value) => {
+    setBrandName(value);
+    window.localStorage.setItem("geo_report_brand_name", value);
+  };
+
+  const handleCopyCode = async (code, idx) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedFixIndex(idx);
+      setTimeout(() => setCopiedFixIndex(null), 2000);
+    } catch (e) {
+      console.error("Failed to copy code:", e);
+    }
+  };
+
+  const handlePrintReport = () => {
+    window.print();
+  };
 
   // Progress Loader text simulator
   const [loaderIndex, setLoaderIndex] = useState(0);
@@ -679,9 +711,20 @@ export default function StudioPage() {
       {/* 📈 STATE C: FULL-WIDTH RESULT DASHBOARD */}
       {/* ──────────────────────────────────────────────────────────────────────── */}
       {generatingStatus === "success" && result && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10 space-y-8 animate-in fade-in duration-300">
+        <div id="report-printable" className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10 space-y-8 animate-in fade-in duration-300">
+          {/* Print-only branded header (hidden on screen) */}
+          <div className="hidden print:block mb-6">
+            <h1 className="text-2xl font-black">
+              {brandName ? `${brandName} — AI Visibility Report` : "AI Visibility Report"}
+            </h1>
+            <p className="text-sm mt-1">
+              {url} &middot; Target keyword: "{keyword}" &middot; Generated{" "}
+              {new Date().toLocaleDateString()}
+            </p>
+          </div>
+
           {/* Dashboard Sticky Sub-Header Nav */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-bg-card/60 border border-divider/50 rounded-2xl p-5 backdrop-blur-md shadow-lg">
+          <div className="print:hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-bg-card/60 border border-divider/50 rounded-2xl p-5 backdrop-blur-md shadow-lg">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded uppercase">
@@ -701,12 +744,25 @@ export default function StudioPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-end">
+              <input
+                type="text"
+                placeholder="Your agency/brand name (for PDF)"
+                value={brandName}
+                onChange={(e) => handleBrandNameChange(e.target.value)}
+                className="bg-bg-page border border-divider/50 rounded px-3 py-2.5 text-xs text-primary-text placeholder-secondary-text/50 focus:outline-none focus:border-primary w-48"
+              />
               <button
                 onClick={handleReset}
                 className="flex items-center gap-1.5 px-4.5 py-2.5 bg-bg-page border border-divider/50 text-secondary-text hover:text-primary-text rounded text-xs font-bold transition-all cursor-pointer hover:bg-bg-card-hover"
               >
                 <FaUndo className="text-[10px]" /> New Audit
+              </button>
+              <button
+                onClick={handlePrintReport}
+                className="flex items-center gap-1.5 px-4.5 py-2.5 bg-bg-page border border-divider/50 text-secondary-text hover:text-primary-text rounded text-xs font-bold transition-all cursor-pointer hover:bg-bg-card-hover"
+              >
+                <FaFilePdf className="text-[10px]" /> Download PDF Report
               </button>
               <button
                 onClick={handleDownload}
@@ -1033,6 +1089,52 @@ export default function StudioPage() {
               </div>
             </div>
           </div>
+
+          {/* Row 5: Copy-Paste Ready Fixes */}
+          {result.code_fixes?.length > 0 && (
+            <div className="bg-bg-card/30 border border-divider/50 rounded-2xl p-6 space-y-4">
+              <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider flex items-center gap-1.5 border-b border-divider/50 pb-2.5">
+                <FaCode className="text-primary text-[9px]" /> Copy-Paste
+                Ready Fixes
+              </span>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {result.code_fixes.map((fix, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-bg-page border border-divider/50 rounded-2xl p-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-black text-primary-text">
+                          {fix.title}
+                        </div>
+                        <div className="text-[10px] text-secondary-text mt-1 leading-relaxed">
+                          {fix.description}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleCopyCode(fix.code, idx)}
+                        className="print:hidden flex items-center gap-1.5 px-2.5 py-1.5 bg-bg-card border border-divider/50 hover:border-primary text-secondary-text hover:text-primary-text rounded text-[10px] font-bold transition-all cursor-pointer flex-shrink-0"
+                      >
+                        {copiedFixIndex === idx ? (
+                          <>
+                            <FaCheck className="text-emerald-400" /> Copied
+                          </>
+                        ) : (
+                          <>
+                            <FaCopy /> Copy
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <pre className="bg-black/30 border border-divider/30 rounded-lg p-3 text-[10px] text-primary-text overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+                      <code>{fix.code}</code>
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
