@@ -7,64 +7,40 @@ import {
   FaGlobe,
   FaCheckCircle,
   FaExclamationTriangle,
-  FaArrowLeft,
-  FaChevronDown,
-  FaTimes,
-  FaShieldAlt,
-  FaChartLine,
   FaRobot,
   FaDatabase,
   FaLink,
   FaDownload,
   FaUndo,
-  FaAngleDoubleRight,
   FaCopy,
   FaCheck,
   FaFilePdf,
   FaCode,
+  FaBolt,
+  FaChartBar,
+  FaBrain,
+  FaKey,
 } from "react-icons/fa";
 import clsx from "clsx";
 
 const ENGINES = [
-  {
-    id: "chatgpt",
-    name: "ChatGPT Search",
-    desc: "OpenAI GPT-4o search citation",
-  },
-  {
-    id: "perplexity",
-    name: "Perplexity AI",
-    desc: "Citation visibility indices",
-  },
-  {
-    id: "google",
-    name: "Google AI Overviews",
-    desc: "Google Gemini overview citation",
-  },
-  {
-    id: "claude",
-    name: "Claude Sonnet",
-    desc: "Anthropic conversational recall",
-  },
-  { id: "gemini", name: "Gemini Pro", desc: "Google Search groundings" },
+  { id: "chatgpt", name: "ChatGPT" },
+  { id: "perplexity", name: "Perplexity" },
+  { id: "gemini", name: "Gemini" },
+  { id: "claude", name: "Claude" },
 ];
 
 export default function StudioPage() {
   // Inputs
   const [url, setUrl] = useState("");
   const [keyword, setKeyword] = useState("");
-  const [engines, setEngines] = useState(["chatgpt", "perplexity", "google"]);
-  const [useReasoning, setUseReasoning] = useState(false);
-  const [checkSchema, setCheckSchema] = useState(true);
+  const [engines, setEngines] = useState(["chatgpt", "perplexity", "gemini", "claude"]);
 
   // States
   const [result, setResult] = useState(null);
   const [generatingStatus, setGeneratingStatus] = useState(""); // "", "generating", "success", "error"
   const [generatingError, setGeneratingError] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
-  // Advanced toggles container visibility
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Report branding (for client-facing PDF export)
   const [brandName, setBrandName] = useState("");
@@ -279,10 +255,10 @@ export default function StudioPage() {
     }
 
     return {
-      text: "Run AI Visibility Audit",
+      text: "Run GEO Audit",
       className:
         "w-full bg-primary hover:bg-primary-hover text-white rounded py-3.5 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-primary/20 active:scale-[0.99]",
-      icon: <FaSearch className="text-xs text-white animate-pulse" />,
+      icon: <FaBolt className="text-xs text-white animate-pulse" />,
       disabled: false,
     };
   };
@@ -299,19 +275,17 @@ export default function StudioPage() {
           {/* Hero Branding */}
           <div className="text-center space-y-4 max-w-2xl mb-12">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-bold uppercase tracking-wider">
-              <FaGlobe className="animate-spin duration-3000 text-primary" />{" "}
-              Generative Engine Optimization (GEO)
+              Generative Engine Optimization
             </div>
             <h1 className="text-4xl sm:text-5xl font-black font-heading text-primary-text tracking-tight leading-none">
-              Is Your Landing Page <br />
+              Why Isn't Your Site{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-hover">
-                Visible in AI Search?
+                Cited by AI Search?
               </span>
             </h1>
             <p className="text-sm sm:text-base text-secondary-text leading-relaxed font-medium">
-              Audit search visibility and citation index parameters. Instantly
-              evaluate how ChatGPT Search, Perplexity, and Google AI Overviews
-              structure, credit, and read your page content.
+              Audit citation indexing, crawler blocks, and model embeddings in
+              seconds.
             </p>
           </div>
 
@@ -322,8 +296,8 @@ export default function StudioPage() {
               {/* URL Field */}
               <div className="flex flex-col">
                 <label className="text-[10px] font-bold text-secondary-text uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <FaLink className="text-primary text-[9px]" /> 1. Website URL
-                  to Audit
+                  <FaLink className="text-primary text-[9px]" /> Website URL to
+                  Audit
                 </label>
                 <div
                   className={clsx(
@@ -359,7 +333,7 @@ export default function StudioPage() {
               {/* Keyword Field */}
               <div className="flex flex-col">
                 <label className="text-[10px] font-bold text-secondary-text uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <FaSearch className="text-primary text-[9px]" /> 2. Target
+                  <FaSearch className="text-primary text-[9px]" /> Target
                   Search Query / Niche
                 </label>
                 <div
@@ -392,118 +366,29 @@ export default function StudioPage() {
             </div>
 
             {/* AI Search Engines Selection */}
-            <div className="flex flex-col">
-              <label className="text-[10px] font-bold text-secondary-text uppercase tracking-wider mb-3">
-                3. Choose Target AI Search Engines to Evaluate
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-                {ENGINES.map((eng) => {
-                  const checked = engines.includes(eng.id);
-                  return (
-                    <button
-                      key={eng.id}
-                      type="button"
-                      onClick={() => toggleEngine(eng.id)}
-                      className={clsx(
-                        "p-3 rounded border text-[11px] flex flex-col justify-between items-start transition-all cursor-pointer text-left h-20",
-                        checked
-                          ? "bg-primary/10 border-primary text-primary-text font-bold shadow-lg shadow-primary/5"
-                          : "bg-bg-page/80 border-divider/50 text-secondary-text hover:bg-bg-card-hover hover:text-primary-text",
-                      )}
-                    >
-                      <span className="font-semibold block">{eng.name}</span>
-                      <div className="flex justify-between items-center w-full mt-1">
-                        <span className="text-[8px] text-secondary-text leading-tight font-medium line-clamp-1">
-                          {eng.desc}
-                        </span>
-                        <div
-                          className={clsx(
-                            "h-3.5 w-3.5 rounded border flex items-center justify-center text-[7px] flex-shrink-0 ml-1.5",
-                            checked
-                              ? "bg-primary border-primary-hover text-white"
-                              : "border-divider/50 bg-bg-page",
-                          )}
-                        >
-                          {checked && "✓"}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Advanced Toggle Controls */}
-            <div className="border-t border-divider/50 pt-4">
-              <button
-                type="button"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center gap-1.5 text-[10px] font-bold text-secondary-text hover:text-primary-text uppercase tracking-wider transition-colors cursor-pointer"
-              >
-                <span>Advanced Crawler Rules Settings</span>
-                <FaChevronDown
-                  className={clsx(
-                    "text-[8px] transition-transform duration-200",
-                    showAdvanced && "transform rotate-180",
-                  )}
-                />
-              </button>
-
-              {showAdvanced && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between p-3.5 bg-bg-page/80 border border-divider/50 rounded">
-                    <div>
-                      <span className="text-xs font-bold text-primary-text block">
-                        Prioritize Reasoning Depth
-                      </span>
-                      <span className="text-[9px] text-secondary-text leading-none block mt-0.5">
-                        Applies slower deep-reasoning chains
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setUseReasoning(!useReasoning)}
-                      className={clsx(
-                        "relative inline-flex h-6.5 w-11.5 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-                        useReasoning ? "bg-primary" : "bg-divider/50",
-                      )}
-                    >
-                      <span
-                        className={clsx(
-                          "pointer-events-none inline-block h-5.5 w-5.5 transform rounded-full bg-white shadow transition duration-200 ease-in-out",
-                          useReasoning ? "translate-x-5" : "translate-x-0",
-                        )}
-                      />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3.5 bg-bg-page/80 border border-divider/50 rounded">
-                    <div>
-                      <span className="text-xs font-bold text-primary-text block">
-                        Audit Structured Schema
-                      </span>
-                      <span className="text-[9px] text-secondary-text leading-none block mt-0.5">
-                        Validates JSON-LD semantic models
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setCheckSchema(!checkSchema)}
-                      className={clsx(
-                        "relative inline-flex h-6.5 w-11.5 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-                        checkSchema ? "bg-primary" : "bg-divider/50",
-                      )}
-                    >
-                      <span
-                        className={clsx(
-                          "pointer-events-none inline-block h-5.5 w-5.5 transform rounded-full bg-white shadow transition duration-200 ease-in-out",
-                          checkSchema ? "translate-x-5" : "translate-x-0",
-                        )}
-                      />
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div className="flex flex-wrap items-center gap-2.5 border-t border-divider/50 pt-4">
+              <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider mr-1">
+                Target AI Engines:
+              </span>
+              {ENGINES.map((eng) => {
+                const checked = engines.includes(eng.id);
+                return (
+                  <button
+                    key={eng.id}
+                    type="button"
+                    onClick={() => toggleEngine(eng.id)}
+                    className={clsx(
+                      "px-3 py-1.5 rounded-full border text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5",
+                      checked
+                        ? "bg-primary/10 border-primary text-primary-text"
+                        : "bg-bg-page/80 border-divider/50 text-secondary-text hover:bg-bg-card-hover hover:text-primary-text",
+                    )}
+                  >
+                    {checked && <FaCheck className="text-primary text-[9px]" />}
+                    <span>{eng.name}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Launch Action triggers */}
@@ -533,6 +418,95 @@ export default function StudioPage() {
                   <span>{generatingError}</span>
                 </div>
               )}
+          </div>
+
+          {/* What Synapcite Diagnoses For You */}
+          <div className="w-full mt-16 space-y-8">
+            <h2 className="text-center text-xs font-bold text-secondary-text uppercase tracking-[0.2em]">
+              What Synapcite Diagnoses For You
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {/* Card 1: AI Crawler Status */}
+              <div className="bg-bg-card/40 border border-divider/50 rounded-2xl p-6 space-y-4">
+                <div className="flex items-center gap-2 text-primary-text font-bold text-sm">
+                  <FaRobot className="text-primary" />
+                  <span>AI Crawler Status</span>
+                </div>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-semibold text-secondary-text">
+                    <span>GPTBot</span>
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-950/30 text-emerald-400 border border-emerald-900/40 text-[10px] font-bold">
+                      <FaCheckCircle className="text-[9px]" /> Allowed
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-semibold text-secondary-text">
+                    <span>PerplexityBot</span>
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-950/30 text-red-400 border border-red-900/40 text-[10px] font-bold">
+                      <FaExclamationTriangle className="text-[9px]" /> Blocked
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Citation Share vs Competitors */}
+              <div className="bg-bg-card/40 border border-divider/50 rounded-2xl p-6 space-y-4">
+                <div className="flex items-center gap-2 text-primary-text font-bold text-sm">
+                  <FaChartBar className="text-primary" />
+                  <span>Citation Share vs Competitors</span>
+                </div>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-secondary-text uppercase">
+                      <span>Your Site</span>
+                      <span>24%</span>
+                    </div>
+                    <div className="h-2 w-full bg-bg-page rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full" style={{ width: "24%" }} />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-secondary-text uppercase">
+                      <span>Competitor A</span>
+                      <span>68%</span>
+                    </div>
+                    <div className="h-2 w-full bg-bg-page rounded-full overflow-hidden">
+                      <div className="h-full bg-red-500/70 rounded-full" style={{ width: "68%" }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Schema & Context Embeddings */}
+              <div className="bg-bg-card/40 border border-divider/50 rounded-2xl p-6 space-y-4">
+                <div className="flex items-center gap-2 text-primary-text font-bold text-sm">
+                  <FaBrain className="text-primary" />
+                  <span>Schema & Context Embeddings</span>
+                </div>
+                <ul className="space-y-2">
+                  <li className="flex items-start gap-2 text-xs text-secondary-text font-medium">
+                    <FaExclamationTriangle className="text-amber-400 text-[10px] flex-shrink-0 mt-0.5" />
+                    <span>Missing JSON-LD entity graph</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-xs text-secondary-text font-medium">
+                    <FaExclamationTriangle className="text-amber-400 text-[10px] flex-shrink-0 mt-0.5" />
+                    <span>Unstructured tabular data</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Card 4: Missed AI Prompts */}
+              <div className="bg-bg-card/40 border border-divider/50 rounded-2xl p-6 space-y-4">
+                <div className="flex items-center gap-2 text-primary-text font-bold text-sm">
+                  <FaKey className="text-primary" />
+                  <span>Missed AI Prompts</span>
+                </div>
+                <p className="text-xs text-secondary-text font-medium leading-relaxed">
+                  <span className="text-primary-text font-black text-lg">12 queries</span>{" "}
+                  where a rival is cited instead of you.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { IoClose, IoMenu } from "react-icons/io5";
-import { SiVercel } from "react-icons/si";
 import config from "@/lib/config";
 
 export default function Navbar() {
@@ -17,6 +16,8 @@ export default function Navbar() {
   const navLinks = [
     { name: "Workspace", path: "/" },
     { name: "Pricing", path: "/pricing" },
+    { name: "About Us", path: "/about" },
+    { name: "Contact Us", path: "/contact" },
   ];
 
   return (
@@ -54,19 +55,6 @@ export default function Navbar() {
           })}
         </nav>
 
-        {/* Desktop Actions Section */}
-        <div className="hidden md:flex items-center gap-3">
-          <a
-            href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FSamurAIGPT%2Fcommon-saas-template"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 rounded-full border border-divider px-4 py-1.5 text-xs font-bold text-secondary-text hover:text-primary-text hover:bg-bg-card transition-colors shadow-sm"
-          >
-            <SiVercel className="text-xs text-white" />
-            <span>Deploy</span>
-          </a>
-        </div>
-
         {/* Mobile Navbar Controls */}
         <div className="flex md:hidden items-center gap-2">
           <button
@@ -96,18 +84,6 @@ export default function Navbar() {
                 {link.name}
               </Link>
             ))}
-
-            <div className="h-px bg-divider/50 my-2" />
-
-            <a
-              href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FSamurAIGPT%2Fcommon-saas-template"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex w-full items-center justify-center gap-2 rounded-full border border-divider py-3 text-xs font-bold text-secondary-text hover:text-primary-text hover:bg-bg-card transition-all"
-            >
-              <SiVercel className="text-xs text-white" />
-              <span>Clone & Deploy Template</span>
-            </a>
           </nav>
         </div>
       )}
