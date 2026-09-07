@@ -1,8 +1,4 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../../lib/auth";
-import { prisma } from "../../../lib/prisma";
-import { UserService } from "../../../lib/services/user";
 import config from "../../../lib/config";
 
 // Extend Vercel function timeout to 60s (Hobby plan supports up to 60s)
@@ -117,32 +113,11 @@ function cleanJsonString(str) {
 
 export async function POST(req) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
-
     const body = await req.json();
     const { url, keyword, engines = ["chatgpt", "perplexity", "google"] } = body;
 
     if (!url || !keyword) {
       return new NextResponse("URL and Keyword are required", { status: 400 });
-    }
-
-    // Extract custom API key
-    const headerApiKey = req.headers.get("x-custom-api-key");
-    const customApiKey = headerApiKey || body.customApiKey || session.user.customApiKey || null;
-    const isUsingCustomKey = Boolean(customApiKey && customApiKey.trim().length > 0);
-
-    // 1. Deduct credits if not using custom API key and not in free mode
-    const isFree = isUsingCustomKey || Boolean(config.ai.freeMode);
-    const cost = isFree ? 0 : (config.ai.generationCost || 18);
-    if (!isFree && cost > 0) {
-      try {
-        await UserService.deductCredits(session.user.id, cost);
-      } catch (err) {
-        return new NextResponse("Insufficient credits", { status: 402 });
-      }
     }
 
     // 2. Perform Scrape (homepage) + discover & scrape up to 9 additional site pages
@@ -268,7 +243,7 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
     }
 
     // 4. Submit to Google Gemini Flash API (or fallback to MuAPI / Mock)
-    const apiKey = isUsingCustomKey ? customApiKey.trim() : config.ai.apiKey;
+    const apiKey = config.ai.apiKey;
     let reportData = "";
     let requestId = `gemini_${Date.now()}`;
     let status = "completed";
@@ -510,36 +485,12 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
       status = "completed";
     }
 
-    // 5. Save report to DB
-    let parsedScore = 0;
-    let cleanedReport = reportData;
-    try {
-      cleanedReport = cleanJsonString(reportData);
-      const dataObj = JSON.parse(cleanedReport);
-      parsedScore = dataObj.visibility_score || 0;
-    } catch (e) {
-      console.warn("Failed to parse report visibility score, using default");
-    }
-
-    const geoReport = await prisma.geoReport.create({
-      data: {
-        userId: session.user.id,
-        url,
-        keyword,
-        score: parsedScore,
-        engines: JSON.stringify(engines),
-        reportData: cleanedReport,
-        requestId,
-        status,
-        creditCost: cost
-      }
-    });
+    // 5. Return report directly (no persistence — audits are stateless/anonymous)
+    const cleanedReport = cleanJsonString(reportData);
 
     return NextResponse.json({
-      id: geoReport.id,
-      score: geoReport.score,
-      reportData: geoReport.reportData,
-      status: geoReport.status
+      reportData: cleanedReport,
+      status,
     });
 
   } catch (error) {

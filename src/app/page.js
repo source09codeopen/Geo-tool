@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useSession, signIn } from "next-auth/react";
 import {
   FaSearch,
   FaSpinner,
@@ -9,7 +8,6 @@ import {
   FaCheckCircle,
   FaExclamationTriangle,
   FaArrowLeft,
-  FaCoins,
   FaChevronDown,
   FaTimes,
   FaShieldAlt,
@@ -52,8 +50,6 @@ const ENGINES = [
 ];
 
 export default function StudioPage() {
-  const { data: session, update: updateSession } = useSession();
-
   // Inputs
   const [url, setUrl] = useState("");
   const [keyword, setKeyword] = useState("");
@@ -63,7 +59,6 @@ export default function StudioPage() {
 
   // States
   const [result, setResult] = useState(null);
-  const [reportId, setReportId] = useState("");
   const [generatingStatus, setGeneratingStatus] = useState(""); // "", "generating", "success", "error"
   const [generatingError, setGeneratingError] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -121,37 +116,6 @@ export default function StudioPage() {
     "Compiling per-page visibility recommendations...",
   ];
 
-  // Load saved report if URL has ?id=
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const savedId = params.get("id");
-
-    if (savedId) {
-      const loadSavedReport = async () => {
-        try {
-          const res = await fetch(`/api/creations?id=${savedId}`);
-          if (res.ok) {
-            const data = await res.json();
-            setUrl(data.url);
-            setKeyword(data.keyword);
-            try {
-              setEngines(JSON.parse(data.engines));
-            } catch (e) {}
-            if (data.reportData) {
-              const parsed = JSON.parse(data.reportData);
-              setResult(parsed);
-              setReportId(data.id);
-              setGeneratingStatus("success");
-            }
-          }
-        } catch (e) {
-          console.error("Error loading saved report:", e);
-        }
-      };
-      loadSavedReport();
-    }
-  }, []);
-
   // Active Timer hooks
   useEffect(() => {
     if (generatingStatus === "generating") {
@@ -180,11 +144,6 @@ export default function StudioPage() {
   };
 
   const handleGenerate = async () => {
-    if (!session?.user) {
-      signIn("google");
-      return;
-    }
-
     if (!url) {
       setGeneratingError("Please enter a website URL to audit.");
       setGeneratingStatus("error");
@@ -223,34 +182,26 @@ export default function StudioPage() {
       });
       clearTimeout(requestTimeout);
 
-      if (res.status === 402) {
-        setGeneratingError(
-          "Insufficient credits. Please purchase a credit pack on the pricing page.",
-        );
-        setGeneratingStatus("error");
-        return;
-      }
-
       if (!res.ok) throw new Error("Visibility audit request failed");
       const data = await res.json();
-
-      updateSession(); // refresh credits
 
       if (data.status === "completed" && data.reportData) {
         try {
           const parsedReport = JSON.parse(data.reportData);
           setResult(parsedReport);
-          setReportId(data.id);
           setGeneratingStatus("success");
         } catch (e) {
-          console.error(
-            "Failed to parse reportData directly, falling back to poll:",
-            e,
+          console.error("Failed to parse report data:", e);
+          setGeneratingError(
+            "AI visibility check report could not be parsed. Please try again.",
           );
-          pollResult(data.id);
+          setGeneratingStatus("error");
         }
       } else {
-        pollResult(data.id);
+        setGeneratingError(
+          "AI visibility check failed. Please verify your website link and try again.",
+        );
+        setGeneratingStatus("error");
       }
     } catch (err) {
       clearTimeout(requestTimeout);
@@ -264,61 +215,6 @@ export default function StudioPage() {
     }
   };
 
-  const pollResult = async (id) => {
-    let completed = false;
-    let attempts = 0;
-    const maxAttempts = 24; // ~60s of polling at 2.5s intervals
-
-    while (!completed && attempts < maxAttempts) {
-      attempts++;
-      await new Promise((resolve) => setTimeout(resolve, 2500));
-
-      try {
-        const res = await fetch(`/api/creations?id=${id}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === "completed") {
-            if (data.reportData) {
-              try {
-                const parsedReport = JSON.parse(data.reportData);
-                setResult(parsedReport);
-                setReportId(data.id);
-                setGeneratingStatus("success");
-                completed = true;
-              } catch (e) {
-                console.error("Failed to parse polled reportData:", e);
-                setGeneratingError(
-                  "AI visibility check report could not be parsed. Please try again.",
-                );
-                setGeneratingStatus("error");
-                completed = true;
-              }
-            } else {
-              console.warn(
-                "Report status is completed but reportData is empty. Retrying...",
-              );
-            }
-          } else if (data.status === "failed") {
-            setGeneratingError(
-              "AI visibility check failed. Please verify your website link and try again.",
-            );
-            setGeneratingStatus("error");
-            completed = true;
-          }
-        }
-      } catch (err) {
-        console.error("Error polling report status:", err);
-      }
-    }
-
-    if (!completed) {
-      setGeneratingError(
-        "AI visibility check timed out. Please try again.",
-      );
-      setGeneratingStatus("error");
-    }
-  };
-
   const handleDownload = () => {
     if (!result) return;
     const downloadUrl = `/api/download?url=${encodeURIComponent(
@@ -326,7 +222,7 @@ export default function StudioPage() {
     )}`;
     const a = document.createElement("a");
     a.href = downloadUrl;
-    a.download = `geo_audit_${reportId || Date.now()}.json`;
+    a.download = `geo_audit_${Date.now()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -340,16 +236,6 @@ export default function StudioPage() {
   };
 
   const getButtonContent = () => {
-    if (!session?.user) {
-      return {
-        text: "Sign in with Google",
-        className:
-          "w-full bg-primary hover:bg-primary-hover text-white rounded py-3.5 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-primary/20 active:scale-[0.99]",
-        icon: <FaSearch className="text-xs text-white animate-pulse" />,
-        disabled: false,
-      };
-    }
-
     if (generatingStatus === "generating") {
       return {
         text: `Analyzing... (${elapsedSeconds}s)`,
@@ -393,7 +279,7 @@ export default function StudioPage() {
     }
 
     return {
-      text: "Run AI Visibility Audit (18 Credits)",
+      text: "Run AI Visibility Audit",
       className:
         "w-full bg-primary hover:bg-primary-hover text-white rounded py-3.5 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-primary/20 active:scale-[0.99]",
       icon: <FaSearch className="text-xs text-white animate-pulse" />,
@@ -621,18 +507,7 @@ export default function StudioPage() {
             </div>
 
             {/* Launch Action triggers */}
-            <div className="border-t border-divider/50 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-              {/* Cost & Credits warning display */}
-              <div className="flex flex-col sm:items-start text-center sm:text-left">
-                <span className="text-[10px] text-secondary-text font-bold uppercase tracking-wider">
-                  Audit cost: 18 credits
-                </span>
-                <span className="text-[11px] text-amber-300 font-bold flex items-center justify-center sm:justify-start gap-1.5 mt-1 bg-amber-950/20 border border-amber-800/30 px-3 py-1 rounded-full">
-                  <FaCoins className="animate-pulse text-amber-400" />
-                  <span>Deducted on analysis initialization</span>
-                </span>
-              </div>
-
+            <div className="border-t border-divider/50 pt-6 flex flex-col sm:flex-row items-center justify-end gap-4">
               {/* Central Trigger Button */}
               <button
                 onClick={handleGenerate}
@@ -659,17 +534,6 @@ export default function StudioPage() {
                 </div>
               )}
           </div>
-
-          {/* Guest alert notifications banner */}
-          {!session?.user && (
-            <div className="max-w-xl w-full bg-amber-950/15 border border-amber-900/30 rounded p-4.5 text-center mt-8 flex items-center justify-center gap-3 shadow-inner">
-              <FaExclamationTriangle className="text-amber-500 text-sm flex-shrink-0 animate-bounce" />
-              <p className="text-[11px] text-amber-300 font-medium leading-relaxed text-left">
-                Playing as Guest: You must sign in with Google to perform
-                audits. Unsaved results are not stored.
-              </p>
-            </div>
-          )}
         </div>
       )}
 
@@ -736,9 +600,6 @@ export default function StudioPage() {
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded uppercase">
                   GEO Report Output
-                </span>
-                <span className="text-xs text-secondary-text">
-                  #{reportId.slice(-6)}
                 </span>
               </div>
               <h2 className="text-lg font-black text-primary-text mt-1.5 truncate flex items-center gap-1.5">
