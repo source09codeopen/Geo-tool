@@ -22,7 +22,7 @@ const config = {
   },
   ai: {
     apiKey: process.env.GEMINI_API_KEY || process.env.MUAPIAPP_API_KEY,
-    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    model: process.env.GEMINI_MODEL || "gemini-2.5-flash-lite",
     freeMode: process.env.FREE_MODE === "true", // If true, skips credit deduction
     generationCost: process.env.GENERATION_COST ? parseInt(process.env.GENERATION_COST) : 18,
   }

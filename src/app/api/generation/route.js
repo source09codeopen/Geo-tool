@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import config from "../../../lib/config";
 import { getCrawlerStatus } from "../../../lib/crawlerStatus";
+import { checkRateLimit, getClientIp } from "../../../lib/rateLimit";
 
 // Extend Vercel function timeout to 60s (Hobby plan supports up to 60s)
 export const maxDuration = 60;
@@ -157,6 +158,18 @@ export async function POST(req) {
 
     if (!url || !keyword) {
       return new NextResponse("URL and Keyword are required", { status: 400 });
+    }
+
+    // Per-IP throttle so one visitor can't drain the shared daily AI quota.
+    const rl = checkRateLimit(getClientIp(req));
+    if (!rl.allowed) {
+      return NextResponse.json(
+        {
+          error: "rate_limited_ip",
+          message: `You're running audits too quickly. Please wait ${rl.retryAfterSec}s and try again.`,
+        },
+        { status: 429 },
+      );
     }
 
     // 2. Perform Scrape (homepage) + discover & scrape up to 9 additional site pages
@@ -330,6 +343,7 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
     let reportData = "";
     let requestId = `gemini_${Date.now()}`;
     let status = "completed";
+    let upstreamBusy = false; // set when the AI provider is rate-limited / overloaded
 
     if (apiKey && !apiKey.includes("your_") && apiKey.trim() !== "") {
       try {
@@ -337,7 +351,7 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
         const isGeminiKey = apiKey.startsWith("AIzaSy") || Boolean(process.env.GEMINI_API_KEY) || !process.env.MUAPIAPP_API_KEY;
 
         if (isGeminiKey) {
-          const modelName = config.ai.model || "gemini-2.5-flash";
+          const modelName = config.ai.model || "gemini-2.5-flash-lite";
           const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
           const geminiRes = await fetchGeminiWithRetry(geminiEndpoint, {
@@ -370,6 +384,9 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
           } else {
             const errBody = await geminiRes.text();
             console.error("Gemini API error:", geminiRes.status, errBody);
+            if (geminiRes.status === 429 || geminiRes.status === 503) {
+              upstreamBusy = true; // daily-quota exhausted or momentary overload
+            }
             throw new Error(`Gemini API error status: ${geminiRes.status}`);
           }
         } else {
@@ -567,6 +584,18 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
         ]
       });
       status = "completed";
+    }
+
+    // If the AI provider was rate-limited or overloaded, tell the user to retry
+    // rather than surfacing a generic failure.
+    if (status === "failed" && upstreamBusy) {
+      return NextResponse.json(
+        {
+          error: "service_busy",
+          message: "The audit service is experiencing high demand right now. Please try again in a minute.",
+        },
+        { status: 429 },
+      );
     }
 
     // 5. Return report directly (no persistence — audits are stateless/anonymous)

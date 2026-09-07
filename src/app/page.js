@@ -194,6 +194,17 @@ export default function StudioPage() {
       });
       clearTimeout(requestTimeout);
 
+      // 429 = per-IP throttle or upstream AI busy — show the server's message.
+      if (res.status === 429) {
+        const info = await res.json().catch(() => ({}));
+        setGeneratingError(
+          info.message ||
+            "The audit service is busy right now. Please try again in a minute.",
+        );
+        setGeneratingStatus("error");
+        return;
+      }
+
       if (!res.ok) throw new Error("Visibility audit request failed");
       const data = await res.json();
 
