@@ -99,6 +99,12 @@ export default function StudioPage() {
     window.print();
   };
 
+  const scoreBadgeClass = (score) => {
+    if (score >= 70) return "bg-emerald-950/30 text-emerald-400 border-emerald-900/40";
+    if (score >= 40) return "bg-amber-950/30 text-amber-400 border-amber-800/40";
+    return "bg-red-950/30 text-red-400 border-red-900/40";
+  };
+
   // Progress Loader text simulator
   const [loaderIndex, setLoaderIndex] = useState(0);
   const timerIntervalRef = useRef(null);
@@ -106,12 +112,13 @@ export default function StudioPage() {
 
   const loaderTexts = [
     "Scraping homepage elements...",
+    "Discovering additional site pages via sitemap...",
     "Cleansing HTML tag syntax...",
     "Validating robots.txt indexing parameters...",
     "Scanning content copy for semantic entities...",
     "Assessing E-E-A-T signals (Expertise & Authoritativeness)...",
     "Running LLM generative engine simulation...",
-    "Compiling final visibility recommendations...",
+    "Compiling per-page visibility recommendations...",
   ];
 
   // Load saved report if URL has ?id=
@@ -201,7 +208,7 @@ export default function StudioPage() {
     setResult(null);
 
     const requestController = new AbortController();
-    const requestTimeout = setTimeout(() => requestController.abort(), 55000);
+    const requestTimeout = setTimeout(() => requestController.abort(), 65000);
 
     try {
       const res = await fetch("/api/generation", {
@@ -1130,6 +1137,67 @@ export default function StudioPage() {
                     <pre className="bg-black/30 border border-divider/30 rounded-lg p-3 text-[10px] text-primary-text overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                       <code>{fix.code}</code>
                     </pre>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Row 6: Page-by-Page Breakdown */}
+          {result.page_reports?.length > 0 && (
+            <div className="bg-bg-card/30 border border-divider/50 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-divider/50 pb-2.5">
+                <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider flex items-center gap-1.5">
+                  <FaGlobe className="text-primary text-[9px]" /> Page-by-Page
+                  Breakdown
+                </span>
+                <span className="text-[10px] text-secondary-text font-medium">
+                  {result.page_reports.length} page
+                  {result.page_reports.length === 1 ? "" : "s"} scanned
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {result.page_reports.map((page, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-bg-page border border-divider/50 rounded-2xl p-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs font-black text-primary-text truncate">
+                          {page.title || page.url}
+                        </div>
+                        <div className="text-[10px] text-secondary-text truncate mt-0.5">
+                          {page.url}
+                        </div>
+                      </div>
+                      <span
+                        className={clsx(
+                          "text-[10px] font-black px-2 py-1 rounded border flex-shrink-0",
+                          scoreBadgeClass(page.visibility_score),
+                        )}
+                      >
+                        {page.visibility_score}%
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-secondary-text leading-relaxed">
+                      {page.summary}
+                    </p>
+                    {page.fixes?.length > 0 && (
+                      <ul className="space-y-1.5 pt-1 border-t border-divider/30">
+                        {page.fixes.map((fix, fixIdx) => (
+                          <li
+                            key={fixIdx}
+                            className="text-[10px] text-primary-text flex items-start gap-2 leading-relaxed"
+                          >
+                            <span className="text-primary flex-shrink-0 mt-0.5">
+                              →
+                            </span>
+                            <span>{fix}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 ))}
               </div>

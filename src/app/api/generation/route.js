@@ -18,6 +18,92 @@ function extractTextFromHtml(html) {
   return clean;
 }
 
+function extractTitleFromHtml(html) {
+  const match = html?.match(/<title[^>]*>([^<]*)<\/title>/i);
+  return match ? match[1].trim().substring(0, 200) : "";
+}
+
+const NON_PAGE_EXTENSIONS = /\.(jpg|jpeg|png|gif|svg|webp|ico|css|js|json|xml|pdf|zip|mp4|mp3|woff2?|ttf)$/i;
+
+function extractSameSiteLinks(html, baseUrl, limit) {
+  if (!html) return [];
+  const origin = new URL(baseUrl).origin;
+  const found = new Set();
+  const hrefRegex = /href=["']([^"'#]+)["']/gi;
+  let match;
+  while ((match = hrefRegex.exec(html)) && found.size < limit * 3) {
+    const raw = match[1];
+    if (/^(mailto:|tel:|javascript:)/i.test(raw)) continue;
+    try {
+      const resolved = new URL(raw, baseUrl);
+      if (resolved.origin !== origin) continue;
+      if (NON_PAGE_EXTENSIONS.test(resolved.pathname)) continue;
+      resolved.hash = "";
+      found.add(resolved.href);
+    } catch (e) {
+      // ignore malformed URLs
+    }
+  }
+  return Array.from(found).slice(0, limit);
+}
+
+async function discoverAdditionalPages(baseUrl, homepageHtml, maxPages) {
+  const origin = new URL(baseUrl).origin;
+
+  // Prefer sitemap.xml — it's the most reliable list of real pages
+  try {
+    const sitemapController = new AbortController();
+    const sitemapTimeout = setTimeout(() => sitemapController.abort(), 3500);
+    const sitemapRes = await fetch(`${origin}/sitemap.xml`, {
+      signal: sitemapController.signal,
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; GEOCheckerBot/1.0)" },
+    });
+    clearTimeout(sitemapTimeout);
+
+    if (sitemapRes.ok) {
+      const xml = await sitemapRes.text();
+      const locs = Array.from(xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)).map((m) => m[1]);
+      const sameSite = locs.filter((loc) => {
+        try {
+          return new URL(loc).origin === origin && loc !== baseUrl;
+        } catch (e) {
+          return false;
+        }
+      });
+      if (sameSite.length > 0) {
+        return sameSite.slice(0, maxPages);
+      }
+    }
+  } catch (e) {
+    // sitemap unavailable — fall through to link crawling
+  }
+
+  return extractSameSiteLinks(homepageHtml, baseUrl, maxPages);
+}
+
+async function scrapePageForReport(pageUrl, maxChars) {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(pageUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const html = await res.text();
+    return {
+      url: pageUrl,
+      title: extractTitleFromHtml(html),
+      text: extractTextFromHtml(html).substring(0, maxChars),
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 function cleanJsonString(str) {
   if (!str) return "";
   let cleaned = str.trim();
@@ -59,16 +145,16 @@ export async function POST(req) {
       }
     }
 
-    // 2. Perform Scrape
+    // 2. Perform Scrape (homepage) + discover & scrape up to 9 additional site pages
     let scrapedText = "";
     let scrapingBlocked = false;
+    let homepageHtml = "";
+    let absoluteUrl = url;
+    if (!/^https?:\/\//i.test(url)) {
+      absoluteUrl = `https://${url}`;
+    }
 
     try {
-      let absoluteUrl = url;
-      if (!/^https?:\/\//i.test(url)) {
-        absoluteUrl = `https://${url}`;
-      }
-
       const scrapeController = new AbortController();
       const scrapeTimeout = setTimeout(() => scrapeController.abort(), 5000);
 
@@ -82,15 +168,29 @@ export async function POST(req) {
       clearTimeout(scrapeTimeout);
 
       if (scrapeRes.ok) {
-        const html = await scrapeRes.text();
-        const text = extractTextFromHtml(html);
-        scrapedText = text.substring(0, 8500); // limit to keep total prompt below 10k character API limit
+        homepageHtml = await scrapeRes.text();
+        const text = extractTextFromHtml(homepageHtml);
+        scrapedText = text.substring(0, 5000);
       } else {
         scrapingBlocked = true;
       }
     } catch (scrapeErr) {
       console.warn("Internal scraper failed, falling back to simulated check:", scrapeErr.message);
       scrapingBlocked = true;
+    }
+
+    // Full-site scan: discover up to 9 more pages (10 total incl. homepage) and scrape them in parallel
+    let sitePages = [];
+    if (!scrapingBlocked) {
+      try {
+        const additionalUrls = await discoverAdditionalPages(absoluteUrl, homepageHtml, 9);
+        const scraped = await Promise.all(
+          additionalUrls.map((pageUrl) => scrapePageForReport(pageUrl, 2000)),
+        );
+        sitePages = scraped.filter((p) => p && p.text);
+      } catch (e) {
+        console.warn("Site-wide page discovery failed:", e.message);
+      }
     }
 
     // 3. Prepare Prompts
@@ -131,6 +231,19 @@ You MUST respond with a single, valid JSON object matching this schema exactly:
       "description": "One sentence on why this specific fix helps AI citation for this page.",
       "code": "Complete, ready-to-paste code. For json-ld: a full <script type=\\"application/ld+json\\">...</script> block populated with real values inferred from the scraped page (name, description, url) — never placeholders like 'Your Company'."
     }
+  ],
+  "page_reports": [
+    {
+      "url": "Exact URL of the page as given below",
+      "title": "The page's actual <title> text",
+      "visibility_score": 70,
+      "summary": "One sentence on this specific page's AI search visibility, based on ITS OWN title/content and how well it targets the keyword.",
+      "fixes": [
+        "Specific, actionable fix tailored to THIS page's actual title/content (not generic)",
+        "Second specific fix for this page",
+        "Third specific fix for this page"
+      ]
+    }
   ]
 }
 
@@ -140,13 +253,18 @@ Populate "code_fixes" with exactly these 4 entries, tailored to the actual scrap
 3. type "llms-txt": A draft /llms.txt file (the emerging llms.txt standard) summarizing the site's purpose, key pages, and the target keyword's topic for LLM consumption.
 4. type "meta-tags": Improved <title> and <meta name="description"> tags optimized for the target keyword and AI citation, sized appropriately (title ~50-60 chars, description ~150-160 chars).
 
+Populate "page_reports" with ONE entry for EVERY page listed under "SITE PAGES" below (including the homepage), in the same order. Base each page's score, summary, and fixes strictly on THAT page's own title and content — never repeat the same generic advice across pages; each page's fixes must reference something specific to its own title/content.
+
 DO NOT return any text outside of the JSON object. Do not wrap the JSON object in markdown blocks like \`\`\`json ... \`\`\`. Just return the raw JSON object string.`;
 
     let prompt = `Target URL: ${url}\nTarget Search Query / Keyword: ${keyword}\n\n`;
     if (scrapingBlocked || !scrapedText) {
       prompt += `[Notice: Scraper was blocked by target server. Perform a simulated GEO audit based on target URL domain metadata, niche, and known entity reputation for ${url} and target search query: ${keyword}]`;
     } else {
-      prompt += `Scraped Page Content:\n${scrapedText}`;
+      prompt += `SITE PAGES:\n\n=== PAGE 1 (Homepage): ${absoluteUrl} (Title: "${extractTitleFromHtml(homepageHtml)}") ===\n${scrapedText}\n`;
+      sitePages.forEach((page, idx) => {
+        prompt += `\n=== PAGE ${idx + 2}: ${page.url} (Title: "${page.title}") ===\n${page.text}\n`;
+      });
     }
 
     // 4. Submit to Google Gemini Flash API (or fallback to MuAPI / Mock)
@@ -165,7 +283,7 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
           const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
           const geminiController = new AbortController();
-          const geminiTimeout = setTimeout(() => geminiController.abort(), 30000);
+          const geminiTimeout = setTimeout(() => geminiController.abort(), 40000);
 
           let geminiRes;
           try {
@@ -187,7 +305,8 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
                 ],
                 generationConfig: {
                   responseMimeType: "application/json",
-                  temperature: 0.7
+                  temperature: 0.7,
+                  maxOutputTokens: 8192
                 }
               }),
               signal: geminiController.signal,
@@ -362,6 +481,30 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
             description: "Aligns your on-page metadata with the target keyword to improve AI citation relevance.",
             code: `<title>${keyword} | ${url}</title>\n<meta name="description" content="Learn about ${keyword} on ${url}. Clear, authoritative, and up to date." />`
           }
+        ],
+        page_reports: [
+          {
+            url: absoluteUrl,
+            title: extractTitleFromHtml(homepageHtml) || url,
+            visibility_score: Math.floor(Math.random() * 35) + 55,
+            summary: `Homepage covers "${keyword}" but lacks structured entity markup for AI citation.`,
+            fixes: [
+              "Add Organization schema to the homepage <head>.",
+              "Mention the target keyword in the first 100 words of visible copy.",
+              "Add an FAQ section addressing common questions about the keyword."
+            ]
+          },
+          ...sitePages.slice(0, 2).map((page) => ({
+            url: page.url,
+            title: page.title || page.url,
+            visibility_score: Math.floor(Math.random() * 35) + 50,
+            summary: `This page's content is only loosely tied to "${keyword}", reducing AI citation relevance.`,
+            fixes: [
+              `Align the page title more closely with "${keyword}".`,
+              "Add descriptive alt text and headings referencing the target topic.",
+              "Link back to the homepage with keyword-rich anchor text."
+            ]
+          }))
         ]
       });
       status = "completed";
