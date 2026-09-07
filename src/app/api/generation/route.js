@@ -337,7 +337,7 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
         const isGeminiKey = apiKey.startsWith("AIzaSy") || Boolean(process.env.GEMINI_API_KEY) || !process.env.MUAPIAPP_API_KEY;
 
         if (isGeminiKey) {
-          const modelName = config.ai.model || "gemini-2.0-flash";
+          const modelName = config.ai.model || "gemini-2.5-flash";
           const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
           const geminiRes = await fetchGeminiWithRetry(geminiEndpoint, {
