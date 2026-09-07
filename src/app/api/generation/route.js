@@ -101,6 +101,44 @@ async function scrapePageForReport(pageUrl, maxChars) {
   }
 }
 
+// Google's own Gemini API occasionally returns 503 "high demand" during
+// traffic spikes — retry once briefly before giving up, per their own
+// guidance that these spikes are usually temporary.
+async function fetchGeminiWithRetry(endpoint, requestBody, { timeoutMs = 20000, maxAttempts = 2, retryDelayMs = 1500 } = {}) {
+  let lastRes = null;
+  let lastErr = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (res.ok || attempt === maxAttempts) return res;
+      if (res.status === 503 || res.status === 429) {
+        lastRes = res;
+        await new Promise((r) => setTimeout(r, retryDelayMs * attempt));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      clearTimeout(timeout);
+      lastErr = err;
+      if (attempt === maxAttempts) throw err;
+      await new Promise((r) => setTimeout(r, retryDelayMs * attempt));
+    }
+  }
+
+  if (lastRes) return lastRes;
+  throw lastErr || new Error("Gemini request failed after retries");
+}
+
 function cleanJsonString(str) {
   if (!str) return "";
   let cleaned = str.trim();
@@ -299,38 +337,23 @@ DO NOT return any text outside of the JSON object. Do not wrap the JSON object i
           const modelName = config.ai.model || "gemini-2.0-flash";
           const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-          const geminiController = new AbortController();
-          const geminiTimeout = setTimeout(() => geminiController.abort(), 40000);
-
-          let geminiRes;
-          try {
-            geminiRes = await fetch(geminiEndpoint, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                contents: [
+          const geminiRes = await fetchGeminiWithRetry(geminiEndpoint, {
+            contents: [
+              {
+                role: "user",
+                parts: [
                   {
-                    role: "user",
-                    parts: [
-                      {
-                        text: `${systemPrompt}\n\n${prompt}`
-                      }
-                    ]
+                    text: `${systemPrompt}\n\n${prompt}`
                   }
-                ],
-                generationConfig: {
-                  responseMimeType: "application/json",
-                  temperature: 0.7,
-                  maxOutputTokens: 8192
-                }
-              }),
-              signal: geminiController.signal,
-            });
-          } finally {
-            clearTimeout(geminiTimeout);
-          }
+                ]
+              }
+            ],
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature: 0.7,
+              maxOutputTokens: 8192
+            }
+          });
 
           if (geminiRes.ok) {
             const geminiData = await geminiRes.json();
