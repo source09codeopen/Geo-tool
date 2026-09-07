@@ -119,26 +119,28 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/* Desktop Navigation Links */}
-        <nav className="hidden md:flex items-center gap-6">
-          {navLinks.map((link) => {
-            const isActive = pathname === link.path;
-            return (
-              <Link
-                key={link.name}
-                href={link.path}
-                className={`text-[13px] font-semibold transition-all relative py-1 ${
-                  isActive ? "text-primary" : "text-secondary-text hover:text-primary-text"
-                }`}
-              >
-                {link.name}
-                {isActive && (
-                  <div className="absolute -bottom-[20px] left-0 right-0 h-0.5 bg-primary rounded-full" />
-                )}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* Desktop Navigation Links (only visible once signed in) */}
+        {status === "authenticated" && (
+          <nav className="hidden md:flex items-center gap-6">
+            {navLinks.map((link) => {
+              const isActive = pathname === link.path;
+              return (
+                <Link
+                  key={link.name}
+                  href={link.path}
+                  className={`text-[13px] font-semibold transition-all relative py-1 ${
+                    isActive ? "text-primary" : "text-secondary-text hover:text-primary-text"
+                  }`}
+                >
+                  {link.name}
+                  {isActive && (
+                    <div className="absolute -bottom-[20px] left-0 right-0 h-0.5 bg-primary rounded-full" />
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Desktop Actions Section */}
         <div className="hidden md:flex items-center gap-3">
@@ -260,19 +262,23 @@ export default function Navbar() {
       {isOpen && (
         <div className="absolute top-full left-0 right-0 z-[200] glass-dropdown border-b border-divider shadow-2xl py-4 px-6 md:hidden animate-fade-in">
           <nav className="flex flex-col gap-3">
-            <span className="text-[10px] uppercase font-bold text-secondary-text tracking-widest mb-1">Navigation</span>
-            {navLinks.map((link) => (
-              <Link
-                key={link.name}
-                href={link.path}
-                onClick={() => setIsOpen(false)}
-                className={`flex items-center py-2.5 rounded text-sm font-semibold transition-all ${
-                  pathname === link.path ? "bg-primary/10 text-primary px-3 border border-primary/20" : "text-primary-text hover:bg-bg-card"
-                }`}
-              >
-                {link.name}
-              </Link>
-            ))}
+            {status === "authenticated" && (
+              <>
+                <span className="text-[10px] uppercase font-bold text-secondary-text tracking-widest mb-1">Navigation</span>
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.name}
+                    href={link.path}
+                    onClick={() => setIsOpen(false)}
+                    className={`flex items-center py-2.5 rounded text-sm font-semibold transition-all ${
+                      pathname === link.path ? "bg-primary/10 text-primary px-3 border border-primary/20" : "text-primary-text hover:bg-bg-card"
+                    }`}
+                  >
+                    {link.name}
+                  </Link>
+                ))}
+              </>
+            )}
 
             <button
               onClick={() => {
