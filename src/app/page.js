@@ -21,6 +21,12 @@ import {
   FaBrain,
   FaKey,
   FaSync,
+  FaImage,
+  FaHeading,
+  FaTags,
+  FaListOl,
+  FaLayerGroup,
+  FaMicrochip,
 } from "react-icons/fa";
 import clsx from "clsx";
 
@@ -118,14 +124,13 @@ export default function StudioPage() {
   const loaderIntervalRef = useRef(null);
 
   const loaderTexts = [
-    "Scraping homepage elements...",
-    "Discovering additional site pages via sitemap...",
-    "Cleansing HTML tag syntax...",
-    "Validating robots.txt indexing parameters...",
-    "Scanning content copy for semantic entities...",
-    "Assessing E-E-A-T signals (Expertise & Authoritativeness)...",
-    "Running LLM generative engine simulation...",
-    "Compiling per-page visibility recommendations...",
+    "Scraping homepage + crawling site pages...",
+    "Running deterministic on-page SEO analysis...",
+    "Gemini Flash: parsing heavy DOM & drafting llms.txt...",
+    "Qwen 3: generating clean JSON-LD & localized schema...",
+    "Groq / Llama: writing titles & alt tags in real time...",
+    "Scoring E-E-A-T & citation likelihood across engines...",
+    "Merging multi-model results into your report...",
   ];
 
   // Active Timer hooks
@@ -844,6 +849,292 @@ export default function StudioPage() {
               </p>
             </div>
           </div>
+
+          {/* Multi-Model Pipeline Attribution Strip */}
+          {result.pipeline?.length > 0 && (
+            <div className="bg-bg-card/30 border border-divider/50 rounded-2xl p-5">
+              <div className="flex items-center gap-1.5 border-b border-divider/50 pb-2.5 mb-4">
+                <FaMicrochip className="text-primary text-[10px]" />
+                <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider">
+                  Multi-Model Optimization Pipeline
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {result.pipeline.map((stage, idx) => {
+                  const ok = stage.status === "completed";
+                  const skipped = stage.status === "skipped";
+                  return (
+                    <div
+                      key={idx}
+                      className="bg-bg-page border border-divider/50 rounded-xl p-4 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-bold text-secondary-text uppercase tracking-wider">
+                          {idx + 1}. {stage.stage}
+                        </span>
+                        <span
+                          className={clsx(
+                            "text-[9px] font-black px-2 py-0.5 rounded-full border",
+                            ok
+                              ? "bg-emerald-950/30 text-emerald-400 border-emerald-900/40"
+                              : skipped
+                                ? "bg-amber-950/30 text-amber-400 border-amber-800/40"
+                                : "bg-red-950/30 text-red-400 border-red-900/40",
+                          )}
+                        >
+                          {ok ? "Done" : skipped ? "Skipped" : "Failed"}
+                        </span>
+                      </div>
+                      <div className="text-xs font-black text-primary-text flex items-center gap-1.5">
+                        <FaBrain className="text-primary text-[10px]" /> {stage.model}
+                      </div>
+                      <p className="text-[10px] text-secondary-text leading-relaxed">
+                        {stage.detail}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* On-Page SEO Suite (deterministic — measured, not AI-guessed) */}
+          {result.onpage_seo && (
+            <div className="bg-bg-card/30 border border-divider/50 rounded-2xl p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-divider/50 pb-2.5">
+                <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider flex items-center gap-1.5">
+                  <FaLayerGroup className="text-primary text-[9px]" /> On-Page SEO Suite
+                </span>
+                <span
+                  className={clsx(
+                    "text-[11px] font-black px-2.5 py-1 rounded-full border",
+                    scoreBadgeClass(result.onpage_seo.score),
+                  )}
+                >
+                  {result.onpage_seo.score}/100
+                </span>
+              </div>
+
+              {/* Signal tiles */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {[
+                  {
+                    icon: <FaHeading />,
+                    label: "Title",
+                    value: `${result.onpage_seo.meta?.title_length || 0} ch`,
+                    good: result.onpage_seo.meta?.title_length >= 30 && result.onpage_seo.meta?.title_length <= 65,
+                  },
+                  {
+                    icon: <FaTags />,
+                    label: "Meta Desc",
+                    value: `${result.onpage_seo.meta?.description_length || 0} ch`,
+                    good: result.onpage_seo.meta?.description_length >= 70 && result.onpage_seo.meta?.description_length <= 165,
+                  },
+                  {
+                    icon: <FaListOl />,
+                    label: "H1 Tags",
+                    value: result.onpage_seo.headings?.counts?.h1 ?? 0,
+                    good: result.onpage_seo.headings?.counts?.h1 === 1,
+                  },
+                  {
+                    icon: <FaImage />,
+                    label: "Alt Coverage",
+                    value: `${result.onpage_seo.images?.coverage_pct ?? 0}%`,
+                    good: (result.onpage_seo.images?.coverage_pct ?? 0) >= 90,
+                  },
+                  {
+                    icon: <FaCode />,
+                    label: "JSON-LD",
+                    value: result.onpage_seo.technical?.has_json_ld ? "Yes" : "No",
+                    good: result.onpage_seo.technical?.has_json_ld,
+                  },
+                  {
+                    icon: <FaBrain />,
+                    label: "Readability",
+                    value: result.onpage_seo.readability?.flesch_reading_ease ?? 0,
+                    good: (result.onpage_seo.readability?.flesch_reading_ease ?? 0) >= 50,
+                  },
+                ].map((tile, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-bg-page border border-divider/50 rounded-xl p-3 flex flex-col items-center text-center gap-1"
+                  >
+                    <span className={clsx("text-sm", tile.good ? "text-emerald-400" : "text-amber-400")}>
+                      {tile.icon}
+                    </span>
+                    <span className="text-sm font-black text-primary-text">{tile.value}</span>
+                    <span className="text-[8px] font-bold text-secondary-text uppercase tracking-wider">
+                      {tile.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Detail columns */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* Deductions */}
+                <div className="space-y-2">
+                  <div className="text-[9px] font-bold text-secondary-text uppercase tracking-wider">
+                    Score Deductions
+                  </div>
+                  {result.onpage_seo.deductions?.length > 0 ? (
+                    <ul className="space-y-1.5">
+                      {result.onpage_seo.deductions.map((d, idx) => (
+                        <li key={idx} className="text-[10px] text-primary-text flex items-start gap-2 leading-relaxed">
+                          <span className="text-red-400 font-black flex-shrink-0">−{d.points}</span>
+                          <span>{d.reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-[10px] text-emerald-400">No on-page issues detected. 🎉</p>
+                  )}
+                </div>
+
+                {/* Keyword density */}
+                <div className="space-y-2">
+                  <div className="text-[9px] font-bold text-secondary-text uppercase tracking-wider">
+                    Keyword Density —{" "}
+                    <span className="text-primary-text normal-case">
+                      "{result.onpage_seo.content?.target_keyword}"
+                    </span>{" "}
+                    {result.onpage_seo.content?.target_keyword_density_pct}%
+                  </div>
+                  <ul className="space-y-1.5">
+                    {result.onpage_seo.content?.top_keywords?.slice(0, 6).map((kw, idx) => (
+                      <li key={idx} className="text-[10px] text-primary-text">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-semibold">{kw.word}</span>
+                          <span className="text-secondary-text">{kw.count}× · {kw.density_pct}%</span>
+                        </div>
+                        <div className="h-1 w-full bg-bg-page rounded-full overflow-hidden">
+                          <div className="h-full bg-primary/70 rounded-full" style={{ width: `${Math.min(kw.density_pct * 12, 100)}%` }} />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Structure & links */}
+                <div className="space-y-2">
+                  <div className="text-[9px] font-bold text-secondary-text uppercase tracking-wider">
+                    Structure & Links
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 text-center">
+                    {["h1", "h2", "h3", "h4", "h5", "h6"].map((h) => (
+                      <div key={h} className="bg-bg-page border border-divider/40 rounded-lg py-1.5">
+                        <div className="text-xs font-black text-primary-text">
+                          {result.onpage_seo.headings?.counts?.[h] ?? 0}
+                        </div>
+                        <div className="text-[8px] font-bold text-secondary-text uppercase">{h}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-primary-text pt-1">
+                    <span className="text-secondary-text">Internal links</span>
+                    <span className="font-bold">{result.onpage_seo.links?.internal ?? 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-primary-text">
+                    <span className="text-secondary-text">External links</span>
+                    <span className="font-bold">{result.onpage_seo.links?.external ?? 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-primary-text">
+                    <span className="text-secondary-text">Word count</span>
+                    <span className="font-bold">{result.onpage_seo.content?.word_count ?? 0}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Real-Time Suggestions (Groq / Llama) — titles & alt tags */}
+          {result.live_suggestions && (
+            <div className="bg-bg-card/30 border border-divider/50 rounded-2xl p-6 space-y-4">
+              <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider flex items-center gap-1.5 border-b border-divider/50 pb-2.5">
+                <FaBolt className="text-primary text-[9px]" /> Real-Time Suggestions
+                <span className="text-[9px] text-secondary-text font-medium italic normal-case">— Llama via Groq</span>
+              </span>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Title & meta options */}
+                <div className="space-y-3">
+                  <div className="text-[9px] font-bold text-secondary-text uppercase tracking-wider">Title Options</div>
+                  {result.live_suggestions.titles?.map((t, idx) => (
+                    <div key={idx} className="flex items-start justify-between gap-2 bg-bg-page border border-divider/50 rounded-lg p-2.5">
+                      <span className="text-[11px] text-primary-text leading-snug">{t.text}</span>
+                      <button
+                        onClick={() => handleCopyCode(t.text, `title-${idx}`)}
+                        className="print:hidden text-secondary-text hover:text-primary-text flex-shrink-0"
+                      >
+                        {copiedKey === `title-${idx}` ? <FaCheck className="text-emerald-400 text-[10px]" /> : <FaCopy className="text-[10px]" />}
+                      </button>
+                    </div>
+                  ))}
+                  <div className="text-[9px] font-bold text-secondary-text uppercase tracking-wider pt-1">Meta Descriptions</div>
+                  {result.live_suggestions.meta_descriptions?.map((m, idx) => (
+                    <div key={idx} className="flex items-start justify-between gap-2 bg-bg-page border border-divider/50 rounded-lg p-2.5">
+                      <span className="text-[11px] text-primary-text leading-snug">{m.text}</span>
+                      <button
+                        onClick={() => handleCopyCode(m.text, `meta-${idx}`)}
+                        className="print:hidden text-secondary-text hover:text-primary-text flex-shrink-0"
+                      >
+                        {copiedKey === `meta-${idx}` ? <FaCheck className="text-emerald-400 text-[10px]" /> : <FaCopy className="text-[10px]" />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Alt tag suggestions */}
+                <div className="space-y-2">
+                  <div className="text-[9px] font-bold text-secondary-text uppercase tracking-wider">
+                    Generated Alt Tags{" "}
+                    {result.live_suggestions.alt_tags?.length > 0 && `(${result.live_suggestions.alt_tags.length})`}
+                  </div>
+                  {result.live_suggestions.alt_tags?.length > 0 ? (
+                    <ul className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                      {result.live_suggestions.alt_tags.map((a, idx) => (
+                        <li key={idx} className="bg-bg-page border border-divider/50 rounded-lg p-2.5 space-y-1">
+                          <div className="text-[9px] text-secondary-text truncate">{a.src}</div>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-[11px] text-primary-text leading-snug">alt="{a.alt}"</span>
+                            <button
+                              onClick={() => handleCopyCode(`alt="${a.alt}"`, `alt-${idx}`)}
+                              className="print:hidden text-secondary-text hover:text-primary-text flex-shrink-0"
+                            >
+                              {copiedKey === `alt-${idx}` ? <FaCheck className="text-emerald-400 text-[10px]" /> : <FaCopy className="text-[10px]" />}
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-[10px] text-emerald-400">All images already have alt text. 🎉</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Localized Structured Data (Qwen 3) */}
+          {result.structured_data?.localized_schema && (
+            <div className="bg-bg-card/30 border border-divider/50 rounded-2xl p-6 space-y-3">
+              <div className="flex items-center justify-between border-b border-divider/50 pb-2.5">
+                <span className="text-[10px] font-bold text-secondary-text uppercase tracking-wider flex items-center gap-1.5">
+                  <FaDatabase className="text-primary text-[9px]" /> Localized Schema
+                  <span className="text-[9px] text-secondary-text font-medium italic normal-case">— Qwen 3</span>
+                </span>
+                <button
+                  onClick={() => handleCopyCode(result.structured_data.localized_schema, "localized-schema")}
+                  className="print:hidden flex items-center gap-1.5 px-2.5 py-1.5 bg-bg-card border border-divider/50 hover:border-primary text-secondary-text hover:text-primary-text rounded text-[10px] font-bold transition-all cursor-pointer"
+                >
+                  {copiedKey === "localized-schema" ? <><FaCheck className="text-emerald-400" /> Copied</> : <><FaCopy /> Copy</>}
+                </button>
+              </div>
+              <pre className="bg-black/30 border border-divider/30 rounded-lg p-3 text-[10px] text-primary-text overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+                <code>{result.structured_data.localized_schema}</code>
+              </pre>
+            </div>
+          )}
 
           {/* Row 1.5: Engine-Specific Visibility Breakdown */}
           {result.engine_breakdown?.length > 0 && (
